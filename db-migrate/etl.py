@@ -23,7 +23,7 @@ TABLE_DEPENDENCIES = {
     'course': ['coach', 'court'],
     'charge': ['coach', 'prepaid_card'],
     'spend': ['course', 'prepaid_card'],
-    'course_membe': ['course']
+    'course_member': ['course', 'prepaid_card'],  # 修正拼写错误，member_id关联prepaid_card.id
 }
 
 
@@ -130,7 +130,66 @@ def extract_foreign_keys(conn, table_name):
         return cursor.fetchall()
 
 
-def create_table_structure(target_conn, ddl):
+def parse_additional_indexes(index_sql_path='db_index_crate.sql', target_database=None):
+    """解析额外的索引SQL文件，返回索引定义字典
+    
+    Args:
+        index_sql_path: 索引SQL文件路径
+        target_database: 目标数据库名称（暂未使用，保留用于未来扩展）
+    
+    Returns:
+        dict: {table_name: [(index_name, columns, is_unique), ...]}
+    """
+    indexes_dict = {}
+    
+    try:
+        with open(index_sql_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 解析CREATE INDEX语句
+        # 匹配模式：CREATE [UNIQUE] INDEX index_name ON `db`.table(column)
+        # 例如: CREATE INDEX idx_charge_coach_id ON `ledong-membership`.charge(coach_id);
+        pattern = r'CREATE\s+(?:UNIQUE\s+)?INDEX\s+`?(\w+)`?\s+ON\s+`?[^`]+`?\.`?(\w+)`?\s*\(([^)]+)\)'
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            # 跳过注释和空行
+            if not line or line.startswith('--'):
+                continue
+            
+            # 匹配CREATE INDEX语句
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                index_name = match.group(1)
+                table_name = match.group(2)
+                columns_str = match.group(3)
+                
+                # 检查是否为UNIQUE索引
+                is_unique = 'UNIQUE' in line.upper()
+                
+                # 解析列名，移除反引号
+                columns = [col.strip().strip('`') for col in columns_str.split(',')]
+                
+                if table_name not in indexes_dict:
+                    indexes_dict[table_name] = []
+                indexes_dict[table_name].append((index_name, columns, is_unique))
+        
+        total_count = sum(len(v) for v in indexes_dict.values())
+        if total_count > 0:
+            logger.info(f"从 {index_sql_path} 解析到 {total_count} 个额外索引，涉及 {len(indexes_dict)} 个表")
+        return indexes_dict
+        
+    except FileNotFoundError:
+        logger.warning(f"索引SQL文件 {index_sql_path} 不存在，跳过额外索引创建")
+        return {}
+    except Exception as e:
+        logger.warning(f"解析索引SQL文件失败: {e}")
+        import traceback
+        logger.debug(traceback.format_exc())
+        return {}
+
+
+def create_table_structure(target_conn, ddl, table_name=None):
     """在新库创建表结构"""
     # 移除AUTO_INCREMENT，避免冲突
     ddl_clean = re.sub(r'AUTO_INCREMENT=\d+', '', ddl)
@@ -139,6 +198,18 @@ def create_table_structure(target_conn, ddl):
     # 添加 IF NOT EXISTS，支持重复执行
     if 'IF NOT EXISTS' not in ddl_clean.upper():
         ddl_clean = re.sub(r'CREATE TABLE', 'CREATE TABLE IF NOT EXISTS', ddl_clean, flags=re.IGNORECASE)
+    
+    # 特殊处理：spend表的description字段从varchar改为float
+    if table_name == 'spend':
+        # 匹配description字段定义，将varchar类型改为float
+        # 匹配模式：`description` varchar(...) 或 `description` VARCHAR(...)
+        ddl_clean = re.sub(
+            r"`description`\s+varchar\([^)]+\)",
+            "`description` float",
+            ddl_clean,
+            flags=re.IGNORECASE
+        )
+        logger.info("已修改spend表的description字段类型为float")
     
     with target_conn.cursor() as cursor:
         try:
@@ -167,6 +238,9 @@ def get_jdbc_properties(db_config):
 
 def migrate_table_data(spark, source_config, target_config, table_name):
     """使用Spark迁移表数据"""
+    from pyspark.sql.functions import col, when, isnan, isnull
+    from pyspark.sql.types import FloatType
+    
     source_url = get_jdbc_url(source_config)
     target_url = get_jdbc_url(target_config)
     source_props = get_jdbc_properties(source_config)
@@ -190,6 +264,23 @@ def migrate_table_data(spark, source_config, target_config, table_name):
             logger.error("   例如: \"driver_jar\": \"mysql-connector-java-8.0.33.jar\"")
             logger.error("3. 或者使用spark-submit运行时添加 --packages mysql:mysql-connector-java:8.0.33")
         raise
+    
+    # 特殊处理：spend表的description字段从varchar转换为float
+    if table_name == 'spend' and 'description' in df.columns:
+        logger.info("转换spend表的description字段：varchar -> float")
+        # 将description字段从字符串转换为float
+        # 处理空值和无法转换的值（设为0）
+        df = df.withColumn(
+            'description',
+            when(col('description').isNull() | (col('description') == ''), 0.0)
+            .otherwise(col('description').cast(FloatType()))
+        )
+        # 处理转换失败的情况（NaN），设为0
+        df = df.withColumn(
+            'description',
+            when(isnan(col('description')) | isnull(col('description')), 0.0)
+            .otherwise(col('description'))
+        )
     
     row_count = df.count()
     logger.info(f"表 {table_name} 共 {row_count} 条记录")
@@ -230,10 +321,23 @@ def migrate_table_data(spark, source_config, target_config, table_name):
         return False
 
 
-def create_indexes_and_constraints(source_conn, target_conn, table_name):
-    """创建索引和外键约束"""
-    indexes = extract_indexes(source_conn, table_name)
+def create_indexes_and_constraints(source_conn, target_conn, table_name, additional_indexes=None):
+    """创建索引和外键约束
+    
+    Args:
+        source_conn: 源数据库连接
+        target_conn: 目标数据库连接
+        table_name: 表名
+        additional_indexes: 额外索引字典 {table_name: [(index_name, columns, is_unique), ...]}
+    """
+    try:
+        indexes = extract_indexes(source_conn, table_name)
+    except Exception as e:
+        # 如果源库中没有该表（如中间表），使用空字典
+        logger.debug(f"源库中不存在表 {table_name}，跳过源索引提取: {e}")
+        indexes = {}
     with target_conn.cursor() as cursor:
+        # 先创建源表中的索引
         for idx_name, idx_info in indexes.items():
             unique = "UNIQUE" if idx_info['unique'] else ""
             columns = ",".join([f"`{col}`" for col in idx_info['columns']])
@@ -246,7 +350,32 @@ def create_indexes_and_constraints(source_conn, target_conn, table_name):
                 else:
                     logger.warning(f"创建索引失败 {table_name}.{idx_name}: {e}")
         
-        fks = extract_foreign_keys(source_conn, table_name)
+        # 创建额外的索引（来自db_index_crate.sql）
+        if additional_indexes and table_name in additional_indexes:
+            for index_name, columns, is_unique in additional_indexes[table_name]:
+                # 检查索引是否已存在（可能源表中已经有同名索引）
+                if index_name in indexes:
+                    logger.debug(f"索引 {table_name}.{index_name} 已从源表创建，跳过")
+                    continue
+                
+                unique = "UNIQUE" if is_unique else ""
+                columns_str = ",".join([f"`{col}`" for col in columns])
+                try:
+                    cursor.execute(f"CREATE {unique} INDEX `{index_name}` ON `{table_name}` ({columns_str})")
+                    logger.info(f"创建额外索引: {table_name}.{index_name} 在字段 ({columns_str})")
+                except Exception as e:
+                    if "1061" in str(e) or "Duplicate key" in str(e):
+                        logger.debug(f"额外索引已存在，跳过: {table_name}.{index_name}")
+                    else:
+                        logger.warning(f"创建额外索引失败 {table_name}.{index_name}: {e}")
+        
+        # 提取外键约束（如果源库中存在该表）
+        try:
+            fks = extract_foreign_keys(source_conn, table_name)
+        except Exception as e:
+            logger.debug(f"源库中不存在表 {table_name}，跳过外键提取: {e}")
+            fks = []
+        
         for fk in fks:
             constraint_name, column_name, ref_table, ref_column = fk
             try:
@@ -355,7 +484,7 @@ def main():
                 ddl = extract_table_ddl(source_conn, table_name)
                 if ddl:
                     ddl_cache[table_name] = ddl
-                    if create_table_structure(target_conn, ddl):
+                    if create_table_structure(target_conn, ddl, table_name):
                         logger.info(f"表结构创建成功: {table_name}")
                     else:
                         logger.error(f"表结构创建失败: {table_name}")
@@ -381,8 +510,28 @@ def main():
         logger.info("阶段3: 创建索引和外键约束")
         logger.info("=" * 50)
         
+        # 解析额外索引文件
+        index_sql_path = os.path.join(os.path.dirname(__file__), 'db_index_crate.sql')
+        additional_indexes = parse_additional_indexes(index_sql_path)
+        
         for table_name in table_order:
-            create_indexes_and_constraints(source_conn, target_conn, table_name)
+            create_indexes_and_constraints(source_conn, target_conn, table_name, additional_indexes)
+        
+        # 为不在table_order中的表创建额外索引（如中间表course_member等）
+        # 这些表可能没有在依赖关系中，但在索引SQL文件中有定义
+        if additional_indexes:
+            existing_tables_set = set(table_order)
+            for table_name in additional_indexes.keys():
+                if table_name not in existing_tables_set:
+                    # 检查表是否存在于目标库
+                    with target_conn.cursor() as cursor:
+                        cursor.execute(f"""
+                            SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES 
+                            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+                        """, (table_name,))
+                        if cursor.fetchone()[0] > 0:
+                            logger.info(f"为表 {table_name} 创建额外索引（该表不在迁移列表中）")
+                            create_indexes_and_constraints(source_conn, target_conn, table_name, additional_indexes)
         
         # 阶段4：验证迁移结果
         logger.info("=" * 50)
