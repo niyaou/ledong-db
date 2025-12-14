@@ -55,7 +55,9 @@ func main() {
 	smsHandler := handler.NewSmsHandler(smsService)
 	courseService := service.NewCourseService()
 	courseHandler := handler.NewCourseHandler(courseService)
-	r := router.NewRouter(smsHandler, courseHandler)
+	efficiencyService := service.NewEfficiencyService()
+	efficiencyHandler := handler.NewEfficiencyHandler(efficiencyService)
+	r := router.NewRouter(smsHandler, courseHandler, efficiencyHandler)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Server.Port,

@@ -8,7 +8,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHandler) *gin.Engine {
+func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHandler, efficiencyHandler *handler.EfficiencyHandler) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(corsMiddleware())
@@ -26,6 +26,11 @@ func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHand
 		course := api.Group("/course")
 		{
 			course.GET("/total", courseHandler.TotalCourse)
+		}
+
+		coach := api.Group("/coach")
+		{
+			coach.GET("/efficient", efficiencyHandler.Efficient)
 		}
 	}
 

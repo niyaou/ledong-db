@@ -24,6 +24,57 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/coach/efficient": {
+            "get": {
+                "description": "根据时间范围统计教练和校区的效率数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "教练"
+                ],
+                "summary": "教练效率统计",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "开始时间，格式：2006-01-02 15:04:05",
+                        "name": "startTime",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "结束时间，格式：2006-01-02 15:04:05",
+                        "name": "endTime",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.EfficiencyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/course/total": {
             "get": {
                 "description": "根据开始时间查询课程列表，支持按会员编号过滤和分页",
@@ -299,7 +350,7 @@ const docTemplate = `{
                     "description": "1=成人课程, 0=儿童课程",
                     "type": "integer"
                 },
-                "members": {
+                "member": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/model.PrepaidCard"
@@ -308,7 +359,7 @@ const docTemplate = `{
                 "notified": {
                     "type": "integer"
                 },
-                "spends": {
+                "spend": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/model.Spend"
@@ -409,12 +460,6 @@ const docTemplate = `{
                     "description": "消费金额",
                     "type": "number"
                 },
-                "course": {
-                    "$ref": "#/definitions/model.Course"
-                },
-                "course_id": {
-                    "type": "integer"
-                },
                 "description": {
                     "description": "注意：保持为float32类型",
                     "type": "number"
@@ -422,22 +467,36 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
-                "prepaid_card": {
-                    "description": "关联关系",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/model.PrepaidCard"
-                        }
-                    ]
-                },
-                "prepaid_card_id": {
-                    "description": "外键字段",
-                    "type": "integer"
-                },
                 "quantities": {
                     "type": "integer"
                 },
                 "times": {
+                    "type": "number"
+                }
+            }
+        },
+        "service.AnalyseItem": {
+            "type": "object",
+            "properties": {
+                "analyse": {
+                    "type": "number"
+                },
+                "courses": {
+                    "type": "number"
+                },
+                "deal": {
+                    "type": "number"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "members": {
+                    "type": "number"
+                },
+                "trial": {
+                    "type": "number"
+                },
+                "workTime": {
                     "type": "number"
                 }
             }
@@ -471,6 +530,40 @@ const docTemplate = `{
                 },
                 "totalPages": {
                     "type": "integer"
+                }
+            }
+        },
+        "service.EfficiencyResponse": {
+            "type": "object",
+            "properties": {
+                "analyse": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.AnalyseItem"
+                    }
+                },
+                "revenue": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.RevenueItem"
+                    }
+                }
+            }
+        },
+        "service.RevenueItem": {
+            "type": "object",
+            "properties": {
+                "charge": {
+                    "type": "number"
+                },
+                "equival": {
+                    "type": "number"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "spend": {
+                    "type": "number"
                 }
             }
         }

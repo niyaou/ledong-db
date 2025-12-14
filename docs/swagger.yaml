@@ -100,13 +100,13 @@ definitions:
       is_adult:
         description: 1=成人课程, 0=儿童课程
         type: integer
-      members:
+      member:
         items:
           $ref: '#/definitions/model.PrepaidCard'
         type: array
       notified:
         type: integer
-      spends:
+      spend:
         items:
           $ref: '#/definitions/model.Spend'
         type: array
@@ -173,25 +173,31 @@ definitions:
       charge:
         description: 消费金额
         type: number
-      course:
-        $ref: '#/definitions/model.Course'
-      course_id:
-        type: integer
       description:
         description: 注意：保持为float32类型
         type: number
       id:
         type: integer
-      prepaid_card:
-        allOf:
-        - $ref: '#/definitions/model.PrepaidCard'
-        description: 关联关系
-      prepaid_card_id:
-        description: 外键字段
-        type: integer
       quantities:
         type: integer
       times:
+        type: number
+    type: object
+  service.AnalyseItem:
+    properties:
+      analyse:
+        type: number
+      courses:
+        type: number
+      deal:
+        type: number
+      key:
+        type: string
+      members:
+        type: number
+      trial:
+        type: number
+      workTime:
         type: number
     type: object
   service.CoursePage:
@@ -215,6 +221,28 @@ definitions:
       totalPages:
         type: integer
     type: object
+  service.EfficiencyResponse:
+    properties:
+      analyse:
+        items:
+          $ref: '#/definitions/service.AnalyseItem'
+        type: array
+      revenue:
+        items:
+          $ref: '#/definitions/service.RevenueItem'
+        type: array
+    type: object
+  service.RevenueItem:
+    properties:
+      charge:
+        type: number
+      equival:
+        type: number
+      key:
+        type: string
+      spend:
+        type: number
+    type: object
 host: localhost:31168
 info:
   contact:
@@ -229,6 +257,40 @@ info:
   title: Ledong DB API
   version: "1.0"
 paths:
+  /coach/efficient:
+    get:
+      consumes:
+      - application/json
+      description: 根据时间范围统计教练和校区的效率数据
+      parameters:
+      - description: 开始时间，格式：2006-01-02 15:04:05
+        in: query
+        name: startTime
+        required: true
+        type: string
+      - description: 结束时间，格式：2006-01-02 15:04:05
+        in: query
+        name: endTime
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.EfficiencyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 教练效率统计
+      tags:
+      - 教练
   /course/total:
     get:
       consumes:
