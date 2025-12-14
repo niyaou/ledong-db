@@ -12,12 +12,12 @@ type Spend struct {
 	Quantities  int     `gorm:"column:quantities;default:1" json:"quantities"`
 
 	// 外键字段
-	PrepaidCardID uint64 `gorm:"column:prepaid_card_id;index" json:"prepaid_card_id"`
-	CourseID      uint64 `gorm:"column:course_id;index" json:"course_id"`
+	PrepaidCardID uint64 `gorm:"column:prepaid_card_id;index" json:"-"`
+	CourseID      uint64 `gorm:"column:course_id;index" json:"-"`
 
 	// 关联关系
-	PrepaidCard PrepaidCard `gorm:"foreignKey:PrepaidCardID" json:"prepaid_card,omitempty"`
-	Course      Course      `gorm:"foreignKey:CourseID" json:"course,omitempty"`
+	PrepaidCard PrepaidCard `gorm:"foreignKey:PrepaidCardID" json:"-"`
+	Course      Course      `gorm:"foreignKey:CourseID" json:"-"`
 
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }

@@ -20,6 +20,201 @@ definitions:
         example: success
         type: string
     type: object
+  model.Charge:
+    properties:
+      annual_times:
+        type: number
+      charge:
+        type: number
+      charged_time:
+        type: string
+      coach:
+        $ref: '#/definitions/model.Coach'
+      coach_id:
+        type: integer
+      court:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      notified:
+        type: integer
+      prepaid_card:
+        allOf:
+        - $ref: '#/definitions/model.PrepaidCard'
+        description: 关联关系
+      prepaid_card_id:
+        description: 外键字段
+        type: integer
+      times:
+        type: number
+      worth:
+        type: integer
+    type: object
+  model.Coach:
+    properties:
+      charges:
+        items:
+          $ref: '#/definitions/model.Charge'
+        type: array
+      courses:
+        items:
+          $ref: '#/definitions/model.Course'
+        type: array
+      id:
+        type: integer
+      is_active:
+        type: integer
+      level:
+        type: integer
+      name:
+        type: string
+      number:
+        type: string
+    type: object
+  model.Course:
+    properties:
+      coach:
+        $ref: '#/definitions/model.Coach'
+      coach_id:
+        type: integer
+      course_type:
+        description: -2体验课未成单,-1体验课成单,0订场，1班课，2私教
+        type: integer
+      court:
+        allOf:
+        - $ref: '#/definitions/model.Court'
+        description: 关联关系
+      court_id:
+        description: 外键字段
+        type: integer
+      description:
+        type: string
+      duration:
+        type: number
+      end_time:
+        type: string
+      id:
+        type: integer
+      is_adult:
+        description: 1=成人课程, 0=儿童课程
+        type: integer
+      members:
+        items:
+          $ref: '#/definitions/model.PrepaidCard'
+        type: array
+      notified:
+        type: integer
+      spends:
+        items:
+          $ref: '#/definitions/model.Spend'
+        type: array
+      start_time:
+        type: string
+    type: object
+  model.Court:
+    properties:
+      courses:
+        items:
+          $ref: '#/definitions/model.Course'
+        type: array
+      id:
+        type: integer
+      is_active:
+        type: integer
+      name:
+        type: string
+    type: object
+  model.PrepaidCard:
+    properties:
+      adults:
+        type: integer
+      annual_count:
+        type: number
+      annual_expire_time:
+        type: string
+      charges:
+        items:
+          $ref: '#/definitions/model.Charge'
+        type: array
+      courses:
+        description: 关联关系
+        items:
+          $ref: '#/definitions/model.Course'
+        type: array
+      court:
+        type: string
+      equivalent_balance:
+        type: integer
+      id:
+        type: integer
+      name:
+        type: string
+      number:
+        type: string
+      rest_charge:
+        type: number
+      spends:
+        items:
+          $ref: '#/definitions/model.Spend'
+        type: array
+      times_count:
+        type: number
+      times_expire_time:
+        type: string
+      younths:
+        type: integer
+    type: object
+  model.Spend:
+    properties:
+      annual_times:
+        type: number
+      charge:
+        description: 消费金额
+        type: number
+      course:
+        $ref: '#/definitions/model.Course'
+      course_id:
+        type: integer
+      description:
+        description: 注意：保持为float32类型
+        type: number
+      id:
+        type: integer
+      prepaid_card:
+        allOf:
+        - $ref: '#/definitions/model.PrepaidCard'
+        description: 关联关系
+      prepaid_card_id:
+        description: 外键字段
+        type: integer
+      quantities:
+        type: integer
+      times:
+        type: number
+    type: object
+  service.CoursePage:
+    properties:
+      content:
+        items:
+          $ref: '#/definitions/model.Course'
+        type: array
+      first:
+        type: boolean
+      last:
+        type: boolean
+      number:
+        type: integer
+      numberOfElements:
+        type: integer
+      size:
+        type: integer
+      totalElements:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
 host: localhost:31168
 info:
   contact:
@@ -34,6 +229,43 @@ info:
   title: Ledong DB API
   version: "1.0"
 paths:
+  /course/total:
+    get:
+      consumes:
+      - application/json
+      description: 根据开始时间查询课程列表，支持按会员编号过滤和分页
+      parameters:
+      - description: 开始时间，格式：2006-01-02 15:04:05
+        in: query
+        name: startTime
+        required: true
+        type: string
+      - description: 会员编号，可选
+        in: query
+        name: number
+        type: string
+      - description: 页码，从1开始，默认1
+        in: query
+        name: pageNum
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.CoursePage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 查询课程列表
+      tags:
+      - 课程
   /health:
     get:
       description: 检查服务是否正常运行
