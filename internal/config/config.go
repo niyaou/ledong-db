@@ -32,6 +32,7 @@ type DatabaseConfig struct {
 type TencentConfig struct {
 	SecretId   string `mapstructure:"secret_id"`
 	SecretKey  string `mapstructure:"secret_key"`
+	Region     string `mapstructure:"region"`
 	SmsAppId   string `mapstructure:"sms_app_id"`
 	SignName   string `mapstructure:"sign_name"`
 	TemplateId string `mapstructure:"template_id"`
@@ -66,6 +67,10 @@ func Load() *Config {
 	v.SetDefault("cache.shards", 1024)
 	v.SetDefault("cache.life_window", "10m")
 	v.SetDefault("cache.clean_window", "5m")
+	v.SetDefault("tencent.region", "ap-guangzhou")
+	v.SetDefault("tencent.sms_app_id", "1400779674")
+	v.SetDefault("tencent.sign_name", "成都乐动精灵体育")
+	v.SetDefault("tencent.template_id", "1640539")
 
 	if err := v.ReadInConfig(); err != nil {
 		_ = err

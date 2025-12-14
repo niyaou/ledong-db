@@ -13,11 +13,17 @@ type Client struct {
 	templateId string
 }
 
-func NewClient(secretId, secretKey, appId, signName, templateId string) (*Client, error) {
+func NewClient(secretId, secretKey, region, appId, signName, templateId string) (*Client, error) {
 	credential := common.NewCredential(secretId, secretKey)
 	cpf := profile.NewClientProfile()
 	cpf.HttpProfile.Endpoint = "sms.tencentcloudapi.com"
-	smsClient, _ := sms.NewClient(credential, "", cpf)
+	cpf.HttpProfile.ReqMethod = "POST"
+	cpf.HttpProfile.ReqTimeout = 60
+	cpf.SignMethod = "HmacSHA256"
+	smsClient, err := sms.NewClient(credential, region, cpf)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Client{
 		smsClient:  smsClient,
@@ -28,8 +34,17 @@ func NewClient(secretId, secretKey, appId, signName, templateId string) (*Client
 }
 
 func (c *Client) Send(phone string, params []string) error {
-
-	return nil
+	req := sms.NewSendSmsRequest()
+	req.SmsSdkAppId = &c.appId
+	req.SignName = &c.signName
+	req.TemplateId = &c.templateId
+	// String[] templateParamSet = {"12月14日麓坊校区","次卡5次","50元次卡30年卡100"};
+	req.TemplateParamSet = stringSliceToPtrSlice(params)
+	phoneNumber := "+86" + phone
+	req.PhoneNumberSet = []*string{&phoneNumber}
+	// return nil
+	_, err := c.smsClient.SendSms(req)
+	return err
 }
 
 func stringSliceToPtrSlice(strs []string) []*string {

@@ -1,5 +1,14 @@
 basePath: /api
 definitions:
+  handler.NotifyRequest:
+    properties:
+      id:
+        description: 课程ID，必填
+        example: 123
+        type: integer
+    required:
+    - id
+    type: object
   handler.Response:
     properties:
       code:
@@ -11,25 +20,7 @@ definitions:
         example: success
         type: string
     type: object
-  handler.SendSmsRequest:
-    properties:
-      params:
-        description: 短信参数
-        example:
-        - 验证码
-        - "5"
-        items:
-          type: string
-        type: array
-      phone:
-        description: 手机号
-        example: "13800138000"
-        type: string
-    required:
-    - params
-    - phone
-    type: object
-host: localhost:8080
+host: localhost:31168
 info:
   contact:
     email: support@swagger.io
@@ -56,18 +47,18 @@ paths:
       summary: 健康检查
       tags:
       - 系统
-  /sms/send:
+  /sms/notify:
     post:
       consumes:
       - application/json
-      description: 通过腾讯云发送短信
+      description: 按照课程查询用户并发送短信通知
       parameters:
-      - description: 短信请求
+      - description: 通知请求
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.SendSmsRequest'
+          $ref: '#/definitions/handler.NotifyRequest'
       produces:
       - application/json
       responses:
@@ -83,7 +74,7 @@ paths:
           description: 服务器错误
           schema:
             $ref: '#/definitions/handler.Response'
-      summary: 发送短信
+      summary: 通知课程
       tags:
       - 短信
 swagger: "2.0"

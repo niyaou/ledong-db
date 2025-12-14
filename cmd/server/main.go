@@ -10,7 +10,7 @@
 // @license.name  Apache 2.0
 // @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
 
-// @host      localhost:8080
+// @host      localhost:31168
 // @BasePath  /api
 
 package main
@@ -46,7 +46,7 @@ func main() {
 		logger.Fatal("缓存初始化失败", "error", err)
 	}
 
-	smsClient, err := tencent.NewClient(cfg.Tencent.SecretId, cfg.Tencent.SecretKey, cfg.Tencent.SmsAppId, cfg.Tencent.SignName, cfg.Tencent.TemplateId)
+	smsClient, err := tencent.NewClient(cfg.Tencent.SecretId, cfg.Tencent.SecretKey, cfg.Tencent.Region, cfg.Tencent.SmsAppId, cfg.Tencent.SignName, cfg.Tencent.TemplateId)
 	if err != nil {
 		logger.Fatal("腾讯云客户端初始化失败", "error", err)
 	}

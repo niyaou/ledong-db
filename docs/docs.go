@@ -44,9 +44,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/sms/send": {
+        "/sms/notify": {
             "post": {
-                "description": "通过腾讯云发送短信",
+                "description": "按照课程查询用户并发送短信通知",
                 "consumes": [
                     "application/json"
                 ],
@@ -56,15 +56,15 @@ const docTemplate = `{
                 "tags": [
                     "短信"
                 ],
-                "summary": "发送短信",
+                "summary": "通知课程",
                 "parameters": [
                     {
-                        "description": "短信请求",
+                        "description": "通知请求",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.SendSmsRequest"
+                            "$ref": "#/definitions/handler.NotifyRequest"
                         }
                     }
                 ],
@@ -92,6 +92,19 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "handler.NotifyRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "description": "课程ID，必填",
+                    "type": "integer",
+                    "example": 123
+                }
+            }
+        },
         "handler.Response": {
             "type": "object",
             "properties": {
@@ -106,31 +119,6 @@ const docTemplate = `{
                     "example": "success"
                 }
             }
-        },
-        "handler.SendSmsRequest": {
-            "type": "object",
-            "required": [
-                "params",
-                "phone"
-            ],
-            "properties": {
-                "params": {
-                    "description": "短信参数",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "验证码",
-                        "5"
-                    ]
-                },
-                "phone": {
-                    "description": "手机号",
-                    "type": "string",
-                    "example": "13800138000"
-                }
-            }
         }
     }
 }`
@@ -138,7 +126,7 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
-	Host:             "localhost:8080",
+	Host:             "localhost:31168",
 	BasePath:         "/api",
 	Schemes:          []string{},
 	Title:            "Ledong DB API",
