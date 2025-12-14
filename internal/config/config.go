@@ -2,93 +2,111 @@ package config
 
 import (
 	"os"
-	"strconv"
+	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Tencent  TencentConfig
-	Cache    CacheConfig
+	Server   ServerConfig   `mapstructure:"server"`
+	Database DatabaseConfig `mapstructure:"database"`
+	Tencent  TencentConfig  `mapstructure:"tencent"`
+	Cache    CacheConfig    `mapstructure:"cache"`
 }
 
 type ServerConfig struct {
-	Port string
+	Port     string `mapstructure:"port"`
+	LogLevel string `mapstructure:"log_level"`
 }
 
 type DatabaseConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	Database string
+	Host     string `mapstructure:"host"`
+	Port     string `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+	Database string `mapstructure:"database"`
 }
 
 type TencentConfig struct {
-	SecretId   string
-	SecretKey  string
-	SmsAppId   string
-	SignName   string
-	TemplateId string
+	SecretId   string `mapstructure:"secret_id"`
+	SecretKey  string `mapstructure:"secret_key"`
+	SmsAppId   string `mapstructure:"sms_app_id"`
+	SignName   string `mapstructure:"sign_name"`
+	TemplateId string `mapstructure:"template_id"`
 }
 
 type CacheConfig struct {
-	MaxSizeMB   int
-	Shards      int
-	LifeWindow  time.Duration
-	CleanWindow time.Duration
+	MaxSizeMB   int           `mapstructure:"max_size_mb"`
+	Shards      int           `mapstructure:"shards"`
+	LifeWindow  time.Duration `mapstructure:"life_window"`
+	CleanWindow time.Duration `mapstructure:"clean_window"`
 }
 
 func Load() *Config {
-	return &Config{
-		Server: ServerConfig{
-			Port: getEnv("SERVER_PORT", "8080"),
-		},
-		Database: DatabaseConfig{
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnv("DB_PORT", "3306"),
-			User:     getEnv("DB_USER", "root"),
-			Password: getEnv("DB_PASSWORD", ""),
-			Database: getEnv("DB_NAME", "ledong_db"),
-		},
-		Tencent: TencentConfig{
-			SecretId:   getEnv("TENCENT_SECRET_ID", ""),
-			SecretKey:  getEnv("TENCENT_SECRET_KEY", ""),
-			SmsAppId:   getEnv("TENCENT_SMS_APP_ID", ""),
-			SignName:   getEnv("TENCENT_SMS_SIGN_NAME", ""),
-			TemplateId: getEnv("TENCENT_SMS_TEMPLATE_ID", ""),
-		},
-		Cache: CacheConfig{
-			MaxSizeMB:   getEnvAsInt("CACHE_MAX_SIZE_MB", 100),
-			Shards:      getEnvAsInt("CACHE_SHARDS", 1024),
-			LifeWindow:  getEnvAsDuration("CACHE_LIFE_WINDOW", 10*time.Minute),
-			CleanWindow: getEnvAsDuration("CACHE_CLEAN_WINDOW", 5*time.Minute),
-		},
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(".")
+	v.AddConfigPath(findProjectRoot())
+	v.AddConfigPath(getExecutableDir())
+
+	v.SetEnvPrefix("")
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	v.SetDefault("server.port", "8080")
+	v.SetDefault("server.log_level", "info")
+	v.SetDefault("database.host", "localhost")
+	v.SetDefault("database.port", "3306")
+	v.SetDefault("database.user", "root")
+	v.SetDefault("database.database", "ledong_db")
+	v.SetDefault("cache.max_size_mb", 100)
+	v.SetDefault("cache.shards", 1024)
+	v.SetDefault("cache.life_window", "10m")
+	v.SetDefault("cache.clean_window", "5m")
+
+	if err := v.ReadInConfig(); err != nil {
+		_ = err
 	}
+
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return &Config{}
+	}
+
+	return &cfg
 }
 
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func findProjectRoot() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
 	}
-	return defaultValue
-}
 
-func getEnvAsInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
+	dir := wd
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
 		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
-	return defaultValue
+	return ""
 }
 
-func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
+func getExecutableDir() string {
+	execPath, err := os.Executable()
+	if err != nil {
+		return ""
 	}
-	return defaultValue
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return ""
+	}
+	return filepath.Dir(execPath)
 }

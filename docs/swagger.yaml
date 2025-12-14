@@ -1,0 +1,89 @@
+basePath: /api
+definitions:
+  handler.Response:
+    properties:
+      code:
+        description: 响应码，0表示成功
+        example: 0
+        type: integer
+      message:
+        description: 响应消息
+        example: success
+        type: string
+    type: object
+  handler.SendSmsRequest:
+    properties:
+      params:
+        description: 短信参数
+        example:
+        - 验证码
+        - "5"
+        items:
+          type: string
+        type: array
+      phone:
+        description: 手机号
+        example: "13800138000"
+        type: string
+    required:
+    - params
+    - phone
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: 乐动数据库服务API文档
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Ledong DB API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: 检查服务是否正常运行
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 健康检查
+      tags:
+      - 系统
+  /sms/send:
+    post:
+      consumes:
+      - application/json
+      description: 通过腾讯云发送短信
+      parameters:
+      - description: 短信请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.SendSmsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: 服务器错误
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 发送短信
+      tags:
+      - 短信
+swagger: "2.0"

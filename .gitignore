@@ -37,9 +37,17 @@ build/
 .env
 .env.local
 
+# Config files
+config.yaml
+config.yml
+
 # Logs
 *.log
 
 # Temporary files
 tmp/
 temp/
+db-migrate/__pycache__/etl.cpython-312.pyc
+db-migrate/config.json
+README.md
+go.sum

@@ -31,10 +31,31 @@ ledong-db/
 
 ## 环境变量
 
-参考 `.env.example` 配置环境变量。
+## 更新mod版本
+```
+go get -u all
+go mod tidy
+```
+
+
 
 ## 运行
 
 ```bash
 go run cmd/server/main.go
 ```
+
+## 生成swagger
+```
+cd d:\project\ledong-db; $env:PATH += ";$env:GOPATH\bin"; swag init -g cmd/server/main.go -o docs
+```
+
+###
+#### 使用方式
+#### 启动服务后，访问 Swagger UI：
+   http://localhost:8080/swagger/index.html
+#### 更新 API 文档：
+   swag init -g cmd/server/main.go -o docs
+#### 查看生成的 OpenAPI 规范：
+JSON: docs/swagger.json
+YAML: docs/swagger.yaml
