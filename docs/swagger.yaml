@@ -183,7 +183,7 @@ definitions:
       times:
         type: number
     type: object
-  service.AnalyseItem:
+  service.AnalyseData:
     properties:
       analyse:
         type: number
@@ -191,14 +191,33 @@ definitions:
         type: number
       deal:
         type: number
-      key:
-        type: string
       members:
         type: number
       trial:
         type: number
       workTime:
         type: number
+    type: object
+  service.ChargePage:
+    properties:
+      content:
+        items:
+          $ref: '#/definitions/model.Charge'
+        type: array
+      first:
+        type: boolean
+      last:
+        type: boolean
+      number:
+        type: integer
+      numberOfElements:
+        type: integer
+      size:
+        type: integer
+      totalElements:
+        type: integer
+      totalPages:
+        type: integer
     type: object
   service.CoursePage:
     properties:
@@ -225,23 +244,46 @@ definitions:
     properties:
       analyse:
         items:
-          $ref: '#/definitions/service.AnalyseItem'
+          additionalProperties:
+            $ref: '#/definitions/service.AnalyseData'
+          type: object
         type: array
       revenue:
         items:
-          $ref: '#/definitions/service.RevenueItem'
+          additionalProperties:
+            $ref: '#/definitions/service.RevenueData'
+          type: object
         type: array
     type: object
-  service.RevenueItem:
+  service.RevenueData:
     properties:
       charge:
         type: number
       equival:
         type: number
-      key:
-        type: string
       spend:
         type: number
+    type: object
+  service.SpendPage:
+    properties:
+      content:
+        items:
+          $ref: '#/definitions/model.Spend'
+        type: array
+      first:
+        type: boolean
+      last:
+        type: boolean
+      number:
+        type: integer
+      numberOfElements:
+        type: integer
+      size:
+        type: integer
+      totalElements:
+        type: integer
+      totalPages:
+        type: integer
     type: object
 host: localhost:31168
 info:
@@ -341,6 +383,325 @@ paths:
       summary: 健康检查
       tags:
       - 系统
+  /prepaidCard/course/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除课程并退还所有会员的消费
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 课程ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 删除课程
+      tags:
+      - 课程
+  /prepaidCard/course/{id}/{member}:
+    delete:
+      consumes:
+      - application/json
+      description: 从课程中移除指定会员，并退还消费
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 课程ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 会员编号
+        in: path
+        name: member
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 移除课程成员
+      tags:
+      - 课程
+  /prepaidCard/course/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建新课程，支持添加会员和消费记录
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 开始时间
+        in: formData
+        name: startTime
+        required: true
+        type: string
+      - description: 结束时间
+        in: formData
+        name: endTime
+        required: true
+        type: string
+      - description: 教练名称
+        in: formData
+        name: coachName
+        required: true
+        type: string
+      - description: 课程时长
+        format: float32
+        in: formData
+        name: spendingTime
+        required: true
+        type: number
+      - description: 场地名称
+        in: formData
+        name: courtName
+        required: true
+        type: string
+      - description: 描述
+        in: formData
+        name: descript
+        required: true
+        type: string
+      - description: 课程类型
+        in: formData
+        name: courseType
+        required: true
+        type: integer
+      - description: 会员JSON对象
+        in: formData
+        name: membersObj
+        required: true
+        type: string
+      - description: 是否成人课程
+        in: formData
+        name: isAdult
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 创建课程
+      tags:
+      - 课程
+  /prepaidCard/course/duplicate:
+    post:
+      consumes:
+      - application/json
+      description: 检查课程列表中是否有重复的课程
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 课程参数列表
+        in: body
+        name: params
+        required: true
+        schema:
+          items:
+            items: {}
+            type: array
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              items: {}
+              type: array
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 课程重复检查
+      tags:
+      - 课程
+  /prepaidCard/course/notify:
+    post:
+      consumes:
+      - application/json
+      description: 发送课程通知短信
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 课程ID
+        in: formData
+        name: courseId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 课程通知
+      tags:
+      - 课程
+  /prepaidCard/course/sm:
+    post:
+      consumes:
+      - application/json
+      description: 发送自定义短信
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 手机号
+        in: formData
+        name: number
+        required: true
+        type: string
+      - collectionFormat: csv
+        description: 短信参数
+        in: formData
+        items:
+          type: string
+        name: params
+        required: true
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 发送课程短信
+      tags:
+      - 课程
+  /prepaidCard/course/trial/{id}:
+    post:
+      consumes:
+      - application/json
+      description: 将体验课状态加1（从未成单变为成单）
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 课程ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 更新体验课状态
+      tags:
+      - 课程
+  /prepaidCard/spend:
+    get:
+      consumes:
+      - application/json
+      description: 查询消费记录，支持按会员编号过滤
+      parameters:
+      - description: 会员编号，可选
+        in: query
+        name: number
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.SpendPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 查询消费记录
+      tags:
+      - 消费记录
   /sms/notify:
     post:
       consumes:
@@ -371,4 +732,394 @@ paths:
       summary: 通知课程
       tags:
       - 短信
+  /user/:
+    get:
+      consumes:
+      - application/json
+      description: 根据会员编号查询单个会员，或查询所有会员
+      parameters:
+      - description: 会员编号
+        in: query
+        name: number
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.PrepaidCard'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 查询会员列表或单个会员
+      tags:
+      - 用户
+  /user/charged:
+    post:
+      consumes:
+      - application/json
+      description: 为用户充值
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 会员编号
+        in: formData
+        name: number
+        required: true
+        type: string
+      - description: 充值金额
+        format: float32
+        in: formData
+        name: charged
+        type: number
+      - description: 充值时间
+        in: formData
+        name: time
+        type: string
+      - description: 充值次数
+        format: float32
+        in: formData
+        name: times
+        type: number
+      - description: 年卡次数
+        format: float32
+        in: formData
+        name: annualTimes
+        type: number
+      - description: 年卡过期时间
+        in: formData
+        name: annualExpireTime
+        type: string
+      - description: 等值
+        in: formData
+        name: worth
+        type: integer
+      - description: 场地
+        in: formData
+        name: court
+        required: true
+        type: string
+      - description: 教练
+        in: formData
+        name: coach
+        required: true
+        type: string
+      - description: 备注
+        in: formData
+        name: description
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Charge'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 充值
+      tags:
+      - 用户
+  /user/charged/{number}:
+    get:
+      consumes:
+      - application/json
+      description: 根据会员编号查询充值记录
+      parameters:
+      - description: 会员编号
+        in: path
+        name: number
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ChargePage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 查询某个用户的充值记录
+      tags:
+      - 用户
+  /user/charged/coach/{number}:
+    get:
+      consumes:
+      - application/json
+      description: 根据教练编号和时间范围查询充值记录
+      parameters:
+      - description: 教练编号
+        in: path
+        name: number
+        required: true
+        type: string
+      - description: 开始时间
+        in: query
+        name: startTime
+        required: true
+        type: string
+      - description: 结束时间
+        in: query
+        name: endTime
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 查询教练的充值记录
+      tags:
+      - 用户
+  /user/charged/retreat/{id}:
+    post:
+      consumes:
+      - application/json
+      description: 根据充值记录ID进行退费
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 充值记录ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 退费
+      tags:
+      - 用户
+  /user/charged/total:
+    get:
+      consumes:
+      - application/json
+      description: 查询所有充值记录，支持分页
+      parameters:
+      - description: 每页数量
+        in: query
+        name: pageSize
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ChargePage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 查询所有充值记录
+      tags:
+      - 用户
+  /user/coach:
+    get:
+      consumes:
+      - application/json
+      description: 查询所有活跃的教练
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Coach'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 查询教练列表
+      tags:
+      - 用户
+  /user/course/notify:
+    post:
+      consumes:
+      - application/json
+      description: 发送课程通知短信
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 课程ID，可选，不传则通知所有未通知的课程
+        in: formData
+        name: id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 课程通知
+      tags:
+      - 用户
+  /user/court:
+    get:
+      consumes:
+      - application/json
+      description: 查询所有场地
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Court'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 查询场地列表
+      tags:
+      - 用户
+  /user/member/{number}:
+    post:
+      consumes:
+      - application/json
+      description: 设置会员的青少年和成人数量
+      parameters:
+      - description: 会员编号
+        in: path
+        name: number
+        required: true
+        type: string
+      - description: 青少年数量
+        in: formData
+        name: yonth
+        required: true
+        type: integer
+      - description: 成人数量
+        in: formData
+        name: adult
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.PrepaidCard'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 设置会员的青少年和成人数量
+      tags:
+      - 用户
+  /user/register:
+    post:
+      consumes:
+      - application/json
+      description: 创建新用户
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        type: string
+      - description: 姓名
+        in: formData
+        name: name
+        required: true
+        type: string
+      - description: 会员编号
+        in: formData
+        name: number
+        required: true
+        type: string
+      - description: 场地
+        in: formData
+        name: court
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 注册用户
+      tags:
+      - 用户
 swagger: "2.0"

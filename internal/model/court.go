@@ -6,7 +6,7 @@ import "gorm.io/gorm"
 type Court struct {
 	ID        uint64         `gorm:"primaryKey;column:id" json:"id"`
 	Name      string         `gorm:"column:name" json:"name"`
-	IsActive  int            `gorm:"column:is_active;default:1" json:"is_active"`
+	IsActive  int            `gorm:"column:is_active;default:1" json:"isActive"`
 	Courses   []Course       `gorm:"foreignKey:CourtID" json:"courses,omitempty"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }

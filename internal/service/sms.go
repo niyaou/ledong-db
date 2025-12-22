@@ -25,7 +25,7 @@ func (s *SmsService) Send(phone string, params []string) error {
 
 func (s *SmsService) Notify(id uint64) error {
 	var course model.Course
-	if err := s.db.Where("notified = ? AND id = ?", 0, id).
+	if err := s.db.Where("notified = ? AND id = ? AND deleted_at IS NULL", 0, id).
 		Preload("Court").Preload("Spends.PrepaidCard").
 		First(&course).Error; err != nil {
 		return err
@@ -35,6 +35,29 @@ func (s *SmsService) Notify(id uint64) error {
 		return err
 	}
 	return s.db.Save(&course).Error
+}
+
+func (s *SmsService) NotifyAll(id *uint64) error {
+	query := s.db.Where("notified = ? AND deleted_at IS NULL", 0)
+	if id != nil {
+		query = query.Where("id = ?", *id)
+	}
+
+	var courses []model.Course
+	if err := query.Preload("Court").Preload("Spends.PrepaidCard").Find(&courses).Error; err != nil {
+		return err
+	}
+
+	for _, course := range courses {
+		if err := s.NotifyCourse(&course); err != nil {
+			return err
+		}
+		if err := s.db.Save(&course).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *SmsService) NotifyCourse(course *model.Course) error {

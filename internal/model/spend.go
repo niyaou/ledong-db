@@ -7,7 +7,7 @@ type Spend struct {
 	ID          uint64  `gorm:"primaryKey;column:id" json:"id"`
 	Charge      float32 `gorm:"column:charge" json:"charge"` // 消费金额
 	Times       float32 `gorm:"column:times" json:"times"`
-	AnnualTimes float32 `gorm:"column:annual_times" json:"annual_times"`
+	AnnualTimes float32 `gorm:"column:annual_times" json:"annualTimes"`
 	Description float32 `gorm:"column:description" json:"description"` // 注意：保持为float32类型
 	Quantities  int     `gorm:"column:quantities;default:1" json:"quantities"`
 
@@ -16,8 +16,8 @@ type Spend struct {
 	CourseID      uint64 `gorm:"column:course_id;index" json:"-"`
 
 	// 关联关系
-	PrepaidCard PrepaidCard `gorm:"foreignKey:PrepaidCardID" json:"-"`
-	Course      Course      `gorm:"foreignKey:CourseID" json:"-"`
+	PrepaidCard PrepaidCard `gorm:"foreignKey:PrepaidCardID" json:"prepaidCard"`
+	Course      Course      `gorm:"foreignKey:CourseID" json:"course"`
 
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }

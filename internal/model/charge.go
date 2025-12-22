@@ -11,19 +11,19 @@ type Charge struct {
 	ID          uint64    `gorm:"primaryKey;column:id" json:"id"`
 	Charge      float32   `gorm:"column:charge" json:"charge"`
 	Times       float32   `gorm:"column:times" json:"times"`
-	AnnualTimes float32   `gorm:"column:annual_times" json:"annual_times"`
+	AnnualTimes float32   `gorm:"column:annual_times" json:"annualTimes"`
 	Notified    int       `gorm:"column:notified" json:"notified"`
 	Worth       int       `gorm:"column:worth;default:0" json:"worth"`
 	Court       string    `gorm:"column:court" json:"court"`
-	ChargedTime time.Time `gorm:"column:charged_time;index" json:"charged_time"`
+	ChargedTime time.Time `gorm:"column:charged_time;index" json:"chargedTime"`
 	Description string    `gorm:"column:description;size:200" json:"description"`
 
 	// 外键字段
-	PrepaidCardID uint64 `gorm:"column:prepaid_card_id;index" json:"prepaid_card_id"`
-	CoachID       uint64 `gorm:"column:coach_id;index" json:"coach_id"`
+	PrepaidCardID uint64 `gorm:"column:prepaid_card_id;index" json:"prepaidCardId"`
+	CoachID       uint64 `gorm:"column:coach_id;index" json:"coachId"`
 
 	// 关联关系
-	PrepaidCard PrepaidCard `gorm:"foreignKey:PrepaidCardID" json:"prepaid_card,omitempty"`
+	PrepaidCard PrepaidCard `gorm:"foreignKey:PrepaidCardID" json:"prepaidCard,omitempty"`
 	Coach       Coach       `gorm:"foreignKey:CoachID" json:"coach,omitempty"`
 
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`

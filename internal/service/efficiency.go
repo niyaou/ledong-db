@@ -1,6 +1,7 @@
 package service
 
 import (
+	"ledong-db/internal/constants"
 	"ledong-db/internal/database"
 	"sort"
 	"time"
@@ -59,13 +60,8 @@ type courseStat struct {
 }
 
 func parseTime(timeStr string) (time.Time, error) {
-	formats := []string{
-		"2006-01-02 15:04:05",
-		"2006-01-02T15:04:05",
-		"2006-01-02",
-	}
-	for _, format := range formats {
-		if t, err := time.Parse(format, timeStr); err == nil {
+	for _, format := range constants.TimeFormats {
+		if t, err := time.ParseInLocation(format, timeStr, time.Local); err == nil {
 			return t, nil
 		}
 	}
@@ -130,7 +126,7 @@ func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]cour
 			WHERE deleted_at IS NULL
 			GROUP BY course_id
 		) spend_sum ON course.id = spend_sum.course_id`).
-		Where("course.start_time >= ? AND course.start_time <= ?", startTime, endTime).
+		Where("course.start_time >= ? AND course.start_time <= ? AND course.deleted_at IS NULL", startTime, endTime).
 		Where("(course.coach_id IS NULL OR coach.is_active > 0)").
 		Scan(&details).Error
 

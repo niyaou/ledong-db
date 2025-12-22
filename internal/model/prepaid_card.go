@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"gorm.io/gorm"
@@ -12,14 +13,14 @@ type PrepaidCard struct {
 	Name              string     `gorm:"column:name" json:"name"`
 	Number            string     `gorm:"column:number;index" json:"number"`
 	Court             string     `gorm:"column:court" json:"court"`
-	RestCharge        float32    `gorm:"column:rest_charge;default:0" json:"rest_charge"`
-	AnnualCount       float32    `gorm:"column:annual_count;default:0" json:"annual_count"`
-	TimesCount        float32    `gorm:"column:times_count;default:0" json:"times_count"`
-	EquivalentBalance int        `gorm:"column:equivalent_balance;default:0" json:"equivalent_balance"`
+	RestCharge        float32    `gorm:"column:rest_charge;default:0" json:"restCharge"`
+	AnnualCount       float32    `gorm:"column:annual_count;default:0" json:"annualCount"`
+	TimesCount        float32    `gorm:"column:times_count;default:0" json:"timesCount"`
+	EquivalentBalance int        `gorm:"column:equivalent_balance;default:0" json:"equivalentBalance"`
 	Younths           int        `gorm:"column:younths;default:0" json:"younths"`
 	Adults            int        `gorm:"column:adults;default:0" json:"adults"`
-	AnnualExpireTime  *time.Time `gorm:"column:annual_expire_time;index" json:"annual_expire_time,omitempty"`
-	TimesExpireTime   *time.Time `gorm:"column:times_expire_time;index" json:"times_expire_time,omitempty"`
+	AnnualExpireTime  *time.Time `gorm:"column:annual_expire_time;index" json:"annualExpireTime,omitempty"`
+	TimesExpireTime   *time.Time `gorm:"column:times_expire_time;index" json:"timesExpireTime,omitempty"`
 
 	// 关联关系
 	Courses []Course `gorm:"many2many:course_member;joinForeignKey:member_id;joinReferences:course_id" json:"courses,omitempty"`
@@ -32,6 +33,45 @@ type PrepaidCard struct {
 // TableName 指定表名
 func (PrepaidCard) TableName() string {
 	return "prepaid_card"
+}
+
+// PrepaidCardJSON PrepaidCard 的 JSON 序列化结构，用于自定义时间格式
+type PrepaidCardJSON struct {
+	ID                uint64  `json:"id"`
+	Name              string  `json:"name"`
+	Number            string  `json:"number"`
+	Court             string  `json:"court"`
+	RestCharge        float32 `json:"restCharge"`
+	AnnualCount       float32 `json:"annualCount"`
+	TimesCount        float32 `json:"timesCount"`
+	EquivalentBalance int     `json:"equivalentBalance"`
+	Younths           int     `json:"younths"`
+	Adults            int     `json:"adults"`
+	AnnualExpireTime  string  `json:"annualExpireTime,omitempty"`
+	TimesExpireTime   string  `json:"timesExpireTime,omitempty"`
+}
+
+// MarshalJSON 自定义 JSON 序列化，将时间格式化为 "2006-01-02"
+func (p PrepaidCard) MarshalJSON() ([]byte, error) {
+	cardJSON := PrepaidCardJSON{
+		ID:                p.ID,
+		Name:              p.Name,
+		Number:            p.Number,
+		Court:             p.Court,
+		RestCharge:        p.RestCharge,
+		AnnualCount:       p.AnnualCount,
+		TimesCount:        p.TimesCount,
+		EquivalentBalance: p.EquivalentBalance,
+		Younths:           p.Younths,
+		Adults:            p.Adults,
+	}
+	if p.AnnualExpireTime != nil {
+		cardJSON.AnnualExpireTime = p.AnnualExpireTime.Format("2006-01-02")
+	}
+	if p.TimesExpireTime != nil {
+		cardJSON.TimesExpireTime = p.TimesExpireTime.Format("2006-01-02")
+	}
+	return json.Marshal(cardJSON)
 }
 
 // 查询示例：

@@ -8,7 +8,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHandler, efficiencyHandler *handler.EfficiencyHandler) *gin.Engine {
+func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHandler, efficiencyHandler *handler.EfficiencyHandler, userHandler *handler.UserHandler, cardHandler *handler.CardHandler) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(corsMiddleware())
@@ -16,6 +16,7 @@ func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHand
 	r.GET("/health", healthCheck)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
+	// api := r.Group("/api")
 	api := r.Group("/api")
 	{
 		sms := api.Group("/sms")
@@ -31,6 +32,43 @@ func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHand
 		coach := api.Group("/coach")
 		{
 			coach.GET("/efficient", efficiencyHandler.Efficient)
+		}
+
+		user := api.Group("/user")
+		{
+			user.POST("/register", userHandler.Register)
+			user.POST("/charged", userHandler.Charged)
+			user.GET("/charged/:number", userHandler.GetChargedByNumber)
+			user.GET("/charged/total", userHandler.GetChargedTotal)
+			user.GET("/charged/coach/:number", userHandler.GetChargedByCoach)
+			user.POST("/member/:number", userHandler.SetYonthAndAdult)
+			user.POST("/charged/retreat/:id", userHandler.RetreatCharge)
+			user.GET("/", userHandler.GetMembers)
+			user.POST("/course/notify", userHandler.NotifyCourse)
+			user.GET("/coach", userHandler.GetCoaches)
+			user.GET("/court", userHandler.GetCourts)
+		}
+
+		prepaidCard := api.Group("/prepaidCard")
+		{
+			prepaidCard.GET("/spend", cardHandler.GetSpend)
+
+			course := prepaidCard.Group("/course")
+			{
+				course.POST("/create", courseHandler.CreateCourse)
+				course.DELETE("/:id/:member", courseHandler.RemoveCourseMember)
+				course.DELETE("/:id", courseHandler.RemoveCourse)
+				course.POST("/trial/:id", courseHandler.TrialCourseUpdate)
+				course.GET("/total", courseHandler.TotalCourse)
+				course.POST("/notify", courseHandler.NotifyCourse)
+				course.POST("/duplicate", courseHandler.DuplicatedCheck)
+				course.POST("/sm", courseHandler.CourseSm)
+			}
+
+			coach := prepaidCard.Group("/coach")
+			{
+				coach.GET("/efficient", efficiencyHandler.Efficient)
+			}
 		}
 	}
 
