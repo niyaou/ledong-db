@@ -7,6 +7,7 @@ import (
 	"ledong-db/internal/constants"
 	"ledong-db/internal/database"
 	"ledong-db/internal/model"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -113,29 +114,7 @@ func (s *CourseService) TotalCourse(startTime string, number *string, pageNum, p
 		return nil, err
 	}
 
-	// 手动加载 Coach，因为 Preload 可能无法正确识别关联关系
-	if len(courses) > 0 {
-		var coachIDs []uint64
-		for _, course := range courses {
-			if course.CoachID > 0 {
-				coachIDs = append(coachIDs, course.CoachID)
-			}
-		}
-		if len(coachIDs) > 0 {
-			var coaches []model.Coach
-			if err := s.db.Where("coach_id IN ?", coachIDs).Find(&coaches).Error; err == nil {
-				coachMap := make(map[uint64]*model.Coach)
-				for i := range coaches {
-					coachMap[coaches[i].ID] = &coaches[i]
-				}
-				for i := range courses {
-					if coach, ok := coachMap[courses[i].CoachID]; ok {
-						courses[i].Coach = *coach
-					}
-				}
-			}
-		}
-	}
+	s.loadCoachesForCourses(courses)
 
 	totalPages := 0
 	if total > 0 {
@@ -236,6 +215,10 @@ func (s *CourseService) CreateCourse(startTime, endTime, coachName string, spend
 			memberMap[members[i].Number] = &members[i]
 		}
 
+		// 收集需要添加的会员ID，避免重复
+		memberIDs := make([]uint64, 0, len(membersData))
+		memberAdded := make(map[uint64]bool)
+
 		for memberNumber, value := range membersData {
 			member, ok := memberMap[memberNumber]
 			if !ok {
@@ -307,8 +290,47 @@ func (s *CourseService) CreateCourse(startTime, endTime, coachName string, spend
 				return nil, err
 			}
 
-			if err := s.db.Model(course).Association("Members").Append(member); err != nil {
+			// 避免重复添加同一个会员
+			if !memberAdded[member.ID] {
+				memberIDs = append(memberIDs, member.ID)
+				memberAdded[member.ID] = true
+			}
+		}
+
+		// 直接使用SQL批量插入，先检查已存在的记录避免重复
+		if len(memberIDs) > 0 {
+			var existing []struct {
+				MemberID uint64
+			}
+			if err := s.db.Table("course_member").
+				Select("member_id").
+				Where("course_id = ? AND member_id IN ?", course.ID, memberIDs).
+				Find(&existing).Error; err != nil {
 				return nil, err
+			}
+
+			existingMap := make(map[uint64]bool)
+			for _, e := range existing {
+				existingMap[e.MemberID] = true
+			}
+
+			newMemberIDs := make([]uint64, 0)
+			for _, memberID := range memberIDs {
+				if !existingMap[memberID] {
+					newMemberIDs = append(newMemberIDs, memberID)
+				}
+			}
+
+			if len(newMemberIDs) > 0 {
+				values := make([]string, 0, len(newMemberIDs))
+				for _, memberID := range newMemberIDs {
+					values = append(values, fmt.Sprintf("(%d, %d)", course.ID, memberID))
+				}
+				sql := fmt.Sprintf("INSERT INTO course_member (course_id, member_id) VALUES %s",
+					strings.Join(values, ", "))
+				if err := s.db.Exec(sql).Error; err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -545,6 +567,7 @@ func (s *CourseService) courseExist(item []interface{}) []interface{} {
 }
 
 func (s *CourseService) DuplicatedCheck(params [][]interface{}) [][]interface{} {
+	s.updateCache()
 	var notExisted [][]interface{}
 	for _, item := range params {
 		if dup := s.courseExist(item); dup != nil {
@@ -561,7 +584,39 @@ func (s *CourseService) updateCache() {
 
 	var courses []model.Course
 	s.db.Where("start_time >= ? AND start_time < ? AND deleted_at IS NULL", firstDayOfThisMonth, firstDayOfNextMonth).
-		Preload("Coach").
 		Find(&courses)
+
+	s.loadCoachesForCourses(courses)
 	s.courseCache = courses
+}
+
+func (s *CourseService) loadCoachesForCourses(courses []model.Course) {
+	if len(courses) == 0 {
+		return
+	}
+
+	var coachIDs []uint64
+	for _, course := range courses {
+		if course.CoachID > 0 {
+			coachIDs = append(coachIDs, course.CoachID)
+		}
+	}
+	if len(coachIDs) == 0 {
+		return
+	}
+
+	var coaches []model.Coach
+	if err := s.db.Where("coach_id IN ?", coachIDs).Find(&coaches).Error; err != nil {
+		return
+	}
+
+	coachMap := make(map[uint64]*model.Coach)
+	for i := range coaches {
+		coachMap[coaches[i].ID] = &coaches[i]
+	}
+	for i := range courses {
+		if coach, ok := coachMap[courses[i].CoachID]; ok {
+			courses[i].Coach = *coach
+		}
+	}
 }
