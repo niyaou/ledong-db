@@ -105,7 +105,7 @@ func (h *CourseHandler) CreateCourse(c *gin.Context) {
 	courseTypeStr := c.PostForm("courseType")
 	membersObj := c.PostForm("membersObj")
 
-	if startTime == "" || endTime == "" || coachName == "" || spendingTimeStr == "" || courtName == "" || descript == "" || courseTypeStr == "" || membersObj == "" {
+	if startTime == "" || endTime == "" || coachName == "" || spendingTimeStr == "" || courtName == "" || courseTypeStr == "" || membersObj == "" {
 		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "参数不完整"})
 		return
 	}

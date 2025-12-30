@@ -73,8 +73,9 @@ func (s *EfficiencyService) getChargeStats(startTime, endTime time.Time) ([]char
 
 	err := s.db.Table("charge").
 		Select("charge.court, COALESCE(coach.name, '') as coach, SUM(COALESCE(NULLIF(charge.charge, 0), charge.worth)) as charge").
-		Joins("LEFT JOIN coach ON charge.coach_id = coach.coach_id").
+		Joins("LEFT JOIN coach ON charge.coach_id = coach.coach_id AND coach.deleted_at IS NULL").
 		Where("charge.charged_time >= ? AND charge.charged_time <= ?", startTime, endTime).
+		Where("charge.deleted_at IS NULL").
 		Where("(charge.coach_id IS NULL OR coach.is_active > 0)").
 		Group("charge.court, coach.name").
 		Scan(&stats).Error

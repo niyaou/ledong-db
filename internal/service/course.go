@@ -7,6 +7,7 @@ import (
 	"ledong-db/internal/constants"
 	"ledong-db/internal/database"
 	"ledong-db/internal/model"
+	"strconv"
 	"strings"
 	"time"
 
@@ -234,20 +235,74 @@ func (s *CourseService) CreateCourse(startTime, endTime, coachName string, spend
 
 			if v, ok := value[0].(float64); ok {
 				charge = float32(v)
+			} else if v, ok := value[0].(float32); ok {
+				charge = v
+			} else if v, ok := value[0].(int); ok {
+				charge = float32(v)
+			} else if v, ok := value[0].(int64); ok {
+				charge = float32(v)
+			} else if v, ok := value[0].(string); ok {
+				if f, err := strconv.ParseFloat(v, 32); err == nil {
+					charge = float32(f)
+				}
 			}
+
 			if v, ok := value[1].(float64); ok {
 				times = float32(v)
+			} else if v, ok := value[1].(float32); ok {
+				times = v
+			} else if v, ok := value[1].(int); ok {
+				times = float32(v)
+			} else if v, ok := value[1].(int64); ok {
+				times = float32(v)
+			} else if v, ok := value[1].(string); ok {
+				if f, err := strconv.ParseFloat(v, 32); err == nil {
+					times = float32(f)
+				}
 			}
+
 			if v, ok := value[2].(float64); ok {
 				annualTimes = float32(v)
+			} else if v, ok := value[2].(float32); ok {
+				annualTimes = v
+			} else if v, ok := value[2].(int); ok {
+				annualTimes = float32(v)
+			} else if v, ok := value[2].(int64); ok {
+				annualTimes = float32(v)
+			} else if v, ok := value[2].(string); ok {
+				if f, err := strconv.ParseFloat(v, 32); err == nil {
+					annualTimes = float32(f)
+				}
 			}
+
 			if v, ok := value[3].(float64); ok {
 				spendDescript = float32(v)
+			} else if v, ok := value[3].(float32); ok {
+				spendDescript = v
+			} else if v, ok := value[3].(int); ok {
+				spendDescript = float32(v)
+			} else if v, ok := value[3].(int64); ok {
+				spendDescript = float32(v)
+			} else if v, ok := value[3].(string); ok {
+				if f, err := strconv.ParseFloat(v, 32); err == nil {
+					spendDescript = float32(f)
+				}
 			}
-			if v, ok := value[4].(float64); ok {
-				quantities = int(v)
-			} else if v, ok := value[4].(int); ok {
+
+			if v, ok := value[4].(int); ok {
 				quantities = v
+			} else if v, ok := value[4].(int64); ok {
+				quantities = int(v)
+			} else if v, ok := value[4].(float64); ok {
+				quantities = int(v)
+			} else if v, ok := value[4].(float32); ok {
+				quantities = int(v)
+			} else if v, ok := value[4].(string); ok {
+				if i, err := strconv.Atoi(v); err == nil {
+					quantities = i
+				} else if f, err := strconv.ParseFloat(v, 64); err == nil {
+					quantities = int(f)
+				}
 			}
 
 			spend := &model.Spend{
