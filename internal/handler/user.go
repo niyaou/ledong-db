@@ -3,7 +3,9 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"sync"
 
+	"ledong-db/internal/config"
 	"ledong-db/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -23,9 +25,18 @@ func NewUserHandler(userService *service.UserService, cardService *service.CardS
 	}
 }
 
+var (
+	secretKeyOnce sync.Once
+	secretKey     string
+)
+
 func verifySecure(c *gin.Context) bool {
+	secretKeyOnce.Do(func() {
+		cfg := config.Load()
+		secretKey = cfg.SecretKey
+	})
 	secure := c.GetHeader("secure")
-	return secure != ""
+	return secure == secretKey
 }
 
 // Register 注册用户
@@ -161,6 +172,10 @@ func (h *UserHandler) Charged(c *gin.Context) {
 // @Failure      500     {object}  Response
 // @Router       /user/charged/{number} [get]
 func (h *UserHandler) GetChargedByNumber(c *gin.Context) {
+	if !verifySecure(c) {
+		c.JSON(http.StatusUnauthorized, Response{Code: 1, Message: "未授权"})
+		return
+	}
 	number := c.Param("number")
 	if number == "" {
 		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "会员编号不能为空"})
@@ -259,6 +274,11 @@ func (h *UserHandler) GetChargedByCoach(c *gin.Context) {
 // @Failure      500     {object}  Response
 // @Router       /user/member/{number} [post]
 func (h *UserHandler) SetYonthAndAdult(c *gin.Context) {
+	if !verifySecure(c) {
+		c.JSON(http.StatusUnauthorized, Response{Code: 1, Message: "未授权"})
+		return
+	}
+
 	number := c.Param("number")
 	yonthStr := c.PostForm("yonth")
 	adultStr := c.PostForm("adult")
@@ -343,6 +363,10 @@ func (h *UserHandler) RetreatCharge(c *gin.Context) {
 // @Failure      500     {object}  Response
 // @Router       /user/ [get]
 func (h *UserHandler) GetMembers(c *gin.Context) {
+	if !verifySecure(c) {
+		c.JSON(http.StatusUnauthorized, Response{Code: 1, Message: "未授权"})
+		return
+	}
 	number := c.Query("number")
 
 	if number != "" {
@@ -415,6 +439,10 @@ func (h *UserHandler) NotifyCourse(c *gin.Context) {
 // @Failure      500     {object}  Response
 // @Router       /user/coach [get]
 func (h *UserHandler) GetCoaches(c *gin.Context) {
+	if !verifySecure(c) {
+		c.JSON(http.StatusUnauthorized, Response{Code: 1, Message: "未授权"})
+		return
+	}
 	coaches, err := h.userService.GetCoaches()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
@@ -434,6 +462,10 @@ func (h *UserHandler) GetCoaches(c *gin.Context) {
 // @Failure      500     {object}  Response
 // @Router       /user/court [get]
 func (h *UserHandler) GetCourts(c *gin.Context) {
+	if !verifySecure(c) {
+		c.JSON(http.StatusUnauthorized, Response{Code: 1, Message: "未授权"})
+		return
+	}
 	courts, err := h.userService.GetCourts()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})

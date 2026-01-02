@@ -29,6 +29,10 @@ func NewEfficiencyHandler(svc *service.EfficiencyService) *EfficiencyHandler {
 // @Failure      500       {object}  Response
 // @Router       /coach/efficient [get]
 func (h *EfficiencyHandler) Efficient(c *gin.Context) {
+	if !verifySecure(c) {
+		c.JSON(http.StatusUnauthorized, Response{Code: 1, Message: "未授权"})
+		return
+	}
 	startTime := c.Query("startTime")
 	if startTime == "" {
 		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "startTime is required"})

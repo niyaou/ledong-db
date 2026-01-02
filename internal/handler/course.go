@@ -35,6 +35,10 @@ func NewCourseHandler(svc *service.CourseService, smsService *service.SmsService
 // @Failure      500       {object}  Response
 // @Router       /course/total [get]
 func (h *CourseHandler) TotalCourse(c *gin.Context) {
+	if !verifySecure(c) {
+		c.JSON(http.StatusUnauthorized, Response{Code: 1, Message: "未授权"})
+		return
+	}
 	startTime := c.Query("startTime")
 	if startTime == "" {
 		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "startTime is required"})

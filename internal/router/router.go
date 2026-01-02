@@ -19,10 +19,10 @@ func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHand
 	// api := r.Group("/api")
 	api := r.Group("/api")
 	{
-		sms := api.Group("/sms")
-		{
-			sms.POST("/notify", smsHandler.Notify)
-		}
+		// sms := api.Group("/sms")
+		// {
+		// 	sms.POST("/notify", smsHandler.Notify)
+		// }
 
 		course := api.Group("/course")
 		{
