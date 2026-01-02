@@ -115,7 +115,8 @@ func (h *UserHandler) Charged(c *gin.Context) {
 	court := c.PostForm("court")
 	coach := c.PostForm("coach")
 
-	if number == "" || court == "" || coach == "" {
+	// if number == "" || court == "" || coach == "" {
+	if number == "" {
 		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "参数不完整"})
 		return
 	}
