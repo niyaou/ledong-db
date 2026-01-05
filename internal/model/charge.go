@@ -19,8 +19,8 @@ type Charge struct {
 	Description string    `gorm:"column:description;size:200" json:"description"`
 
 	// 外键字段
-	PrepaidCardID uint64 `gorm:"column:prepaid_card_id;index" json:"prepaidCardId"`
-	CoachID       uint64 `gorm:"column:coach_id;index" json:"coachId"`
+	PrepaidCardID uint64  `gorm:"column:prepaid_card_id;index" json:"prepaidCardId"`
+	CoachID       *uint64 `gorm:"column:coach_id;index" json:"coachId"`
 
 	// 关联关系
 	PrepaidCard PrepaidCard `gorm:"foreignKey:PrepaidCardID" json:"prepaidCard,omitempty"`

@@ -98,8 +98,8 @@ func (h *UserHandler) Register(c *gin.Context) {
 // @Param        annualTimes       formData  float32  false  "年卡次数"
 // @Param        annualExpireTime  formData  string   false  "年卡过期时间"
 // @Param        worth             formData  int      false  "等值"
-// @Param        court             formData  string   true   "场地"
-// @Param        coach             formData  string   true   "教练"
+// @Param        court             formData  string   false  "场地"
+// @Param        coach             formData  string   false  "教练"
 // @Param        description       formData  string   false  "备注"
 // @Success      200               {object}  model.Charge
 // @Failure      400               {object}  Response
@@ -112,14 +112,13 @@ func (h *UserHandler) Charged(c *gin.Context) {
 	}
 
 	number := c.PostForm("number")
-	court := c.PostForm("court")
-	coach := c.PostForm("coach")
-
-	// if number == "" || court == "" || coach == "" {
 	if number == "" {
 		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "参数不完整"})
 		return
 	}
+
+	court := c.PostForm("court")
+	coach := c.PostForm("coach")
 
 	var charged, times, annualTimes *float32
 	if chargedStr := c.PostForm("charged"); chargedStr != "" {

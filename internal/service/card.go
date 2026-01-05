@@ -32,12 +32,16 @@ func (s *CardService) SetRestCharge(number string, charged, times, annualTimes *
 		return nil, err
 	}
 
-	var coach model.Coach
-	if err := s.db.Where("name = ?", coachName).First(&coach).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("教练不存在")
+	var coachID *uint64
+	if coachName != "" {
+		var coach model.Coach
+		if err := s.db.Where("name = ?", coachName).First(&coach).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errors.New("教练不存在")
+			}
+			return nil, err
 		}
-		return nil, err
+		coachID = &coach.ID
 	}
 
 	var parsedTime time.Time
@@ -57,7 +61,7 @@ func (s *CardService) SetRestCharge(number string, charged, times, annualTimes *
 		Times:         0,
 		AnnualTimes:   0,
 		Court:         court,
-		CoachID:       coach.ID,
+		CoachID:       coachID,
 		PrepaidCardID: user.ID,
 		Description:   description,
 		ChargedTime:   parsedTime,
