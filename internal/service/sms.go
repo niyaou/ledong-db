@@ -75,10 +75,10 @@ func (s *SmsService) NotifyCourse(course *model.Course) error {
 			spendStr += fmt.Sprintf("%.0f元", spend.Charge)
 		}
 		if spend.Times != 0 {
-			spendStr += fmt.Sprintf("%.0f次", spend.Times)
+			spendStr += fmt.Sprintf("%.1f次", spend.Times)
 		}
 		if spend.AnnualTimes != 0 {
-			spendStr += fmt.Sprintf("%.0f次", spend.AnnualTimes)
+			spendStr += fmt.Sprintf("%.1f次", spend.AnnualTimes)
 		}
 
 		params := []string{
@@ -86,8 +86,8 @@ func (s *SmsService) NotifyCourse(course *model.Course) error {
 			court,
 			spendStr,
 			fmt.Sprintf("%.0f", member.RestCharge),
-			fmt.Sprintf("%.0f", member.TimesCount),
-			fmt.Sprintf("%.0f", member.AnnualCount),
+			fmt.Sprintf("%.1f", member.TimesCount),
+			fmt.Sprintf("%.1f", member.AnnualCount),
 		}
 
 		if err := s.Send(member.Number, params); err != nil {
