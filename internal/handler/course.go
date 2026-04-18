@@ -23,11 +23,12 @@ func NewCourseHandler(svc *service.CourseService, smsService *service.SmsService
 
 // TotalCourse 查询课程列表
 // @Summary      查询课程列表
-// @Description  根据开始时间查询课程列表，支持按会员编号过滤和分页
+// @Description  根据开始和结束时间查询课程列表，支持按会员编号过滤和分页
 // @Tags         课程
 // @Accept       json
 // @Produce      json
 // @Param        startTime  query     string  true   "开始时间，格式：2006-01-02 15:04:05"
+// @Param        endTime    query     string  false  "结束时间，格式：2006-01-02 15:04:05"
 // @Param        number     query     string  false  "会员编号，可选"
 // @Param        pageNum    query     int     false  "页码，从1开始，默认1"
 // @Success      200        {object}  service.CoursePage
@@ -45,9 +46,11 @@ func (h *CourseHandler) TotalCourse(c *gin.Context) {
 		return
 	}
 
+	endTime := c.Query("endTime")
+
 	number := c.Query("number")
 	if number != "" {
-		result, err := h.service.MemberCourse(startTime, number, 1, 100)
+		result, err := h.service.MemberCourse(startTime, endTime, number, 1, 100)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 			return
@@ -65,7 +68,7 @@ func (h *CourseHandler) TotalCourse(c *gin.Context) {
 
 	pageSize := 100
 	var numberPtr *string
-	result, err := h.service.TotalCourse(startTime, numberPtr, pageNum, pageSize)
+	result, err := h.service.TotalCourse(startTime, endTime, numberPtr, pageNum, pageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return

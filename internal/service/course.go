@@ -43,11 +43,12 @@ type Page[T any] struct {
 
 type CoursePage = Page[model.Course]
 
-func (s *CourseService) TotalCourse(startTime string, number *string, pageNum, pageSize int) (*Page[model.Course], error) {
-	var parsedTime time.Time
+func (s *CourseService) TotalCourse(startTime, endTime string, number *string, pageNum, pageSize int) (*Page[model.Course], error) {
+	var parsedStartTime time.Time
+	var parsedEndTime *time.Time
 	var err error
 	for _, format := range constants.TimeFormats {
-		parsedTime, err = time.ParseInLocation(format, startTime, time.Local)
+		parsedStartTime, err = time.ParseInLocation(format, startTime, time.Local)
 		if err == nil {
 			break
 		}
@@ -55,11 +56,27 @@ func (s *CourseService) TotalCourse(startTime string, number *string, pageNum, p
 	if err != nil {
 		return nil, err
 	}
+	if endTime != "" {
+		var t time.Time
+		for _, format := range constants.TimeFormats {
+			t, err = time.ParseInLocation(format, endTime, time.Local)
+			if err == nil {
+				break
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		parsedEndTime = &t
+	}
 
 	query := s.db.Model(&model.Course{}).
-		Where("start_time >= ?", parsedTime).
+		Where("start_time >= ?", parsedStartTime).
 		Where("course.deleted_at IS NULL").
 		Order("start_time DESC")
+	if parsedEndTime != nil {
+		query = query.Where("start_time <= ?", *parsedEndTime)
+	}
 
 	if number != nil && *number != "" {
 		query = query.Joins("JOIN course_member ON course.id = course_member.course_id").
@@ -76,8 +93,11 @@ func (s *CourseService) TotalCourse(startTime string, number *string, pageNum, p
 	var courses []model.Course
 	offset := (pageNum - 1) * pageSize
 	findQuery := s.db.Model(&model.Course{}).
-		Where("start_time >= ?", parsedTime).
+		Where("start_time >= ?", parsedStartTime).
 		Where("course.deleted_at IS NULL")
+	if parsedEndTime != nil {
+		findQuery = findQuery.Where("start_time <= ?", *parsedEndTime)
+	}
 
 	if number != nil && *number != "" {
 		var courseIDs []uint64
@@ -517,17 +537,31 @@ func (s *CourseService) Notify(courseId uint64) error {
 	return s.smsService.Notify(courseId)
 }
 
-func (s *CourseService) MemberCourse(startTime, number string, pageNum, pageSize int) (*CoursePage, error) {
-	var parsedTime time.Time
+func (s *CourseService) MemberCourse(startTime, endTime, number string, pageNum, pageSize int) (*CoursePage, error) {
+	var parsedStartTime time.Time
+	var parsedEndTime *time.Time
 	var err error
 	for _, format := range constants.TimeFormats {
-		parsedTime, err = time.ParseInLocation(format, startTime, time.Local)
+		parsedStartTime, err = time.ParseInLocation(format, startTime, time.Local)
 		if err == nil {
 			break
 		}
 	}
 	if err != nil {
 		return nil, err
+	}
+	if endTime != "" {
+		var t time.Time
+		for _, format := range constants.TimeFormats {
+			t, err = time.ParseInLocation(format, endTime, time.Local)
+			if err == nil {
+				break
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		parsedEndTime = &t
 	}
 
 	member, err := s.userService.FindByNumber(number)
@@ -537,9 +571,12 @@ func (s *CourseService) MemberCourse(startTime, number string, pageNum, pageSize
 
 	query := s.db.Model(&model.Course{}).
 		Joins("JOIN course_member ON course.id = course_member.course_id").
-		Where("course_member.member_id = ? AND course.start_time >= ? AND course.deleted_at IS NULL", member.ID, parsedTime).
+		Where("course_member.member_id = ? AND course.start_time >= ? AND course.deleted_at IS NULL", member.ID, parsedStartTime).
 		Order("course.start_time DESC").
 		Group("course.id")
+	if parsedEndTime != nil {
+		query = query.Where("course.start_time <= ?", *parsedEndTime)
+	}
 
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
