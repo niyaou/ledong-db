@@ -10,11 +10,10 @@ import (
 )
 
 type Config struct {
-	Server    ServerConfig   `mapstructure:"server"`
-	Database  DatabaseConfig `mapstructure:"database"`
-	Tencent   TencentConfig  `mapstructure:"tencent"`
-	Cache     CacheConfig    `mapstructure:"cache"`
-	SecretKey string         `mapstructure:"secret_key"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Database DatabaseConfig `mapstructure:"database"`
+	Tencent  TencentConfig  `mapstructure:"tencent"`
+	Cache    CacheConfig    `mapstructure:"cache"`
 }
 
 type ServerConfig struct {

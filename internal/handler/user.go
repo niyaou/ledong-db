@@ -33,7 +33,7 @@ var (
 func verifySecure(c *gin.Context) bool {
 	secretKeyOnce.Do(func() {
 		cfg := config.Load()
-		secretKey = cfg.SecretKey
+		secretKey = cfg.Tencent.SecretId
 	})
 	secure := c.GetHeader("secure")
 	return secure == secretKey

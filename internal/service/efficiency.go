@@ -18,19 +18,20 @@ func NewEfficiencyService() *EfficiencyService {
 }
 
 // AnalyseData 教练效率统计
-// 效率指标（analyse）= 总成员数 ÷ 有效课程数
-// 有效课程数：有消费记录的课程数量
-// 总成员数：每节课成员数之和
-//   - 多人消费（大于1人）：按实际消费人次算
-//   - 只有1人消费：班课算1人，私教算2人
-//   - 无人消费：不计入
+// 效率指标（analyse）= 截断后总成员数 ÷ 截断后有效课程数
+// 对于2星教练，私教课每月最多统计60节，超出部分不计入analyse计算
+// 但 Courses/Members 字段仍返回原始值，不受截断影响
 type AnalyseData struct {
-	WorkTime float32 `json:"workTime"` // 工作时长
-	Courses  float32 `json:"courses"`  // 有效课程数
-	Members  float32 `json:"members"`  // 总成员数
-	Analyse  float32 `json:"analyse"`  // 效率指标 = Members / Courses
-	Trial    float32 `json:"trial"`    // 体验课数量
-	Deal     float32 `json:"deal"`     // 成单数量
+	WorkTime         float32 `json:"workTime"`         // 工作时长
+	Courses          float32 `json:"courses"`          // 有效课程数（原始值，不受截断影响）
+	Members          float32 `json:"members"`          // 总成员数（原始值，不受截断影响）
+	Analyse          float32 `json:"analyse"`          // 原始满班率 = Members / Courses（兼容旧逻辑）
+	AdjustedAnalyse  float32 `json:"adjustedAnalyse"`  // 调整后满班率（2星教练私教课每月上限60节）
+	Trial            float32 `json:"trial"`            // 体验课数量
+	Deal             float32 `json:"deal"`             // 成单数量
+	// 以下字段仅用于内部计算，不返回给前端
+	truncatedCourses float32
+	truncatedMembers float32
 }
 
 type RevenueData struct {
@@ -64,6 +65,9 @@ type courseStat struct {
 	Trial     float32
 	Deal      float32
 	Spend     float32
+	// 以下字段用于2星教练满班率截断计算，不影响原始 Courses/Members 返回
+	TruncatedCourses float32
+	TruncatedMembers float32
 }
 
 func parseTime(timeStr string) (time.Time, error) {
@@ -102,6 +106,11 @@ func (s *EfficiencyService) getCourtEquival() ([]courtEquivalStat, error) {
 	return stats, err
 }
 
+const (
+	// CoachLevel2PrivateLimit 2星教练每月私教课上限
+	CoachLevel2PrivateLimit = 60
+)
+
 func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]courseStat, error) {
 	type courseDetail struct {
 		CoachName  string
@@ -110,6 +119,8 @@ func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]cour
 		Duration   float32
 		Quantities int
 		Spend      float32
+		CoachLevel int
+		Month      int
 	}
 
 	var details []courseDetail
@@ -118,6 +129,8 @@ func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]cour
 		Select(`
 			COALESCE(coach.name, '') as coach_name,
 			COALESCE(court.name, '') as court_name,
+			coach.level as coach_level,
+			MONTH(course.start_time) as month,
 			course.course_type,
 			course.duration,
 			COALESCE(spend_sum.quantities_sum, 0) as quantities,
@@ -136,6 +149,7 @@ func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]cour
 		) spend_sum ON course.id = spend_sum.course_id`).
 		Where("course.start_time >= ? AND course.start_time <= ? AND course.deleted_at IS NULL", startTime, endTime).
 		Where("(course.coach_id IS NULL OR coach.is_active > 0)").
+		Order("course.start_time").
 		Scan(&details).Error
 
 	if err != nil {
@@ -143,6 +157,8 @@ func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]cour
 	}
 
 	statsMap := make(map[string]*courseStat)
+	// 记录每个教练每月已统计的私教课数，用于2星教练截断
+	coachPrivateMonthCount := make(map[string]map[int]int)
 
 	for _, detail := range details {
 		coachKey := detail.CoachName
@@ -208,21 +224,47 @@ func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]cour
 				}
 			}
 
+			// 判断该节课是否因2星教练私教课上限而被截断（仅用于满班率计算）
+			isTruncated := false
+			if coachKey != "" && detail.CourseType == 2 && detail.CoachLevel == 2 {
+				if coachPrivateMonthCount[coachKey] == nil {
+					coachPrivateMonthCount[coachKey] = make(map[int]int)
+				}
+				if coachPrivateMonthCount[coachKey][detail.Month] >= CoachLevel2PrivateLimit {
+					isTruncated = true
+				} else {
+					coachPrivateMonthCount[coachKey][detail.Month]++
+				}
+			}
+
 			if coachKey != "" {
 				if stat, ok := statsMap["coach:"+coachKey]; ok {
 					stat.WorkTime += detail.Duration
 					stat.Courses += courses
 					stat.Members += members
 					stat.Spend += detail.Spend
+					// 截断仅影响满班率内部计算，不影响返回的 Courses/Members
+					if !isTruncated {
+						stat.TruncatedCourses += courses
+						stat.TruncatedMembers += members
+					}
 				} else {
+					truncatedCourses := float32(0)
+					truncatedMembers := float32(0)
+					if !isTruncated {
+						truncatedCourses = courses
+						truncatedMembers = members
+					}
 					statsMap["coach:"+coachKey] = &courseStat{
-						CoachName: coachKey,
-						WorkTime:  detail.Duration,
-						Courses:   courses,
-						Members:   members,
-						Trial:     0,
-						Deal:      0,
-						Spend:     detail.Spend,
+						CoachName:        coachKey,
+						WorkTime:         detail.Duration,
+						Courses:          courses,
+						Members:          members,
+						Trial:            0,
+						Deal:             0,
+						Spend:            detail.Spend,
+						TruncatedCourses: truncatedCourses,
+						TruncatedMembers: truncatedMembers,
 					}
 				}
 			}
@@ -332,23 +374,39 @@ func (s *EfficiencyService) AnalyseEfficiency(startTime, endTime string) (*Effic
 				item.Members += stat.Members
 				item.Trial += stat.Trial
 				item.Deal += stat.Deal
+				item.truncatedCourses += stat.TruncatedCourses
+				item.truncatedMembers += stat.TruncatedMembers
+				// 原始满班率
 				if item.Courses > 0 {
 					item.Analyse = item.Members / item.Courses
 				} else {
 					item.Analyse = 0
 				}
+				// 调整后满班率（截断后）
+				if item.truncatedCourses > 0 {
+					item.AdjustedAnalyse = item.truncatedMembers / item.truncatedCourses
+				} else {
+					item.AdjustedAnalyse = 0
+				}
 			} else {
-				analyse := float32(0)
+				rawAnalyse := float32(0)
 				if stat.Courses > 0 {
-					analyse = stat.Members / stat.Courses
+					rawAnalyse = stat.Members / stat.Courses
+				}
+				adjAnalyse := float32(0)
+				if stat.TruncatedCourses > 0 {
+					adjAnalyse = stat.TruncatedMembers / stat.TruncatedCourses
 				}
 				analysMap[key] = &AnalyseData{
-					WorkTime: stat.WorkTime,
-					Courses:  stat.Courses,
-					Members:  stat.Members,
-					Analyse:  analyse,
-					Trial:    stat.Trial,
-					Deal:     stat.Deal,
+					WorkTime:         stat.WorkTime,
+					Courses:          stat.Courses,
+					Members:          stat.Members,
+					Analyse:          rawAnalyse,
+					AdjustedAnalyse:  adjAnalyse,
+					Trial:            stat.Trial,
+					Deal:             stat.Deal,
+					truncatedCourses: stat.TruncatedCourses,
+					truncatedMembers: stat.TruncatedMembers,
 				}
 			}
 
@@ -371,23 +429,39 @@ func (s *EfficiencyService) AnalyseEfficiency(startTime, endTime string) (*Effic
 				item.Members += stat.Members
 				item.Trial += stat.Trial
 				item.Deal += stat.Deal
+				item.truncatedCourses += stat.TruncatedCourses
+				item.truncatedMembers += stat.TruncatedMembers
+				// 原始满班率
 				if item.Courses > 0 {
 					item.Analyse = item.Members / item.Courses
 				} else {
 					item.Analyse = 0
 				}
+				// 调整后满班率（截断后）
+				if item.truncatedCourses > 0 {
+					item.AdjustedAnalyse = item.truncatedMembers / item.truncatedCourses
+				} else {
+					item.AdjustedAnalyse = 0
+				}
 			} else {
-				analyse := float32(0)
+				rawAnalyse := float32(0)
 				if stat.Courses > 0 {
-					analyse = stat.Members / stat.Courses
+					rawAnalyse = stat.Members / stat.Courses
+				}
+				adjAnalyse := float32(0)
+				if stat.TruncatedCourses > 0 {
+					adjAnalyse = stat.TruncatedMembers / stat.TruncatedCourses
 				}
 				analysMap[key] = &AnalyseData{
-					WorkTime: stat.WorkTime,
-					Courses:  stat.Courses,
-					Members:  stat.Members,
-					Analyse:  analyse,
-					Trial:    stat.Trial,
-					Deal:     stat.Deal,
+					WorkTime:         stat.WorkTime,
+					Courses:          stat.Courses,
+					Members:          stat.Members,
+					Analyse:          rawAnalyse,
+					AdjustedAnalyse:  adjAnalyse,
+					Trial:            stat.Trial,
+					Deal:             stat.Deal,
+					truncatedCourses: stat.TruncatedCourses,
+					truncatedMembers: stat.TruncatedMembers,
 				}
 			}
 
@@ -410,10 +484,16 @@ func (s *EfficiencyService) AnalyseEfficiency(startTime, endTime string) (*Effic
 
 	var analyseEntries []analyseEntry
 	for key, item := range analysMap {
+		// 最终校准：确保 Analyse 是原始满班率，AdjustedAnalyse 是截断后的满班率
 		if item.Courses > 0 {
 			item.Analyse = item.Members / item.Courses
 		} else {
 			item.Analyse = 0
+		}
+		if item.truncatedCourses > 0 {
+			item.AdjustedAnalyse = item.truncatedMembers / item.truncatedCourses
+		} else {
+			item.AdjustedAnalyse = 0
 		}
 		analyseEntries = append(analyseEntries, analyseEntry{key: key, data: *item})
 	}
