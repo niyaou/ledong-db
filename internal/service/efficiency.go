@@ -17,13 +17,20 @@ func NewEfficiencyService() *EfficiencyService {
 	return &EfficiencyService{db: database.DB}
 }
 
+// AnalyseData 教练效率统计
+// 效率指标（analyse）= 总成员数 ÷ 有效课程数
+// 有效课程数：有消费记录的课程数量
+// 总成员数：每节课成员数之和
+//   - 多人消费（大于1人）：按实际消费人次算
+//   - 只有1人消费：班课算1人，私教算2人
+//   - 无人消费：不计入
 type AnalyseData struct {
-	WorkTime float32 `json:"workTime"`
-	Courses  float32 `json:"courses"`
-	Members  float32 `json:"members"`
-	Analyse  float32 `json:"analyse"`
-	Trial    float32 `json:"trial"`
-	Deal     float32 `json:"deal"`
+	WorkTime float32 `json:"workTime"` // 工作时长
+	Courses  float32 `json:"courses"`  // 有效课程数
+	Members  float32 `json:"members"`  // 总成员数
+	Analyse  float32 `json:"analyse"`  // 效率指标 = Members / Courses
+	Trial    float32 `json:"trial"`    // 体验课数量
+	Deal     float32 `json:"deal"`     // 成单数量
 }
 
 type RevenueData struct {
