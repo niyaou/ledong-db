@@ -3,6 +3,7 @@ module ledong-db
 go 1.25
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/gin-gonic/gin v1.11.0
 	github.com/spf13/viper v1.21.0
