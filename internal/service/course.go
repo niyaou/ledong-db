@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type CourseService struct {
@@ -467,46 +468,67 @@ func (s *CourseService) RemoveCourseMember(courseId uint64, number string) (*mod
 
 func (s *CourseService) RemoveCourse(courseId uint64) (*model.Course, error) {
 	var course model.Course
-	if err := s.db.Where("deleted_at IS NULL").Preload("Members").Preload("Spends.PrepaidCard").First(&course, courseId).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrUserNotFound
-		}
-		return nil, err
-	}
-
-	for _, spend := range course.Spends {
-		member := spend.PrepaidCard
-		if member.ID == 0 {
-			continue
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("deleted_at IS NULL").
+			Preload("Spends.PrepaidCard").
+			First(&course, courseId).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrUserNotFound
+			}
+			return err
 		}
 
-		if spend.Charge != 0 {
-			if err := s.userService.SetRestChargeChange(member.Number, spend.Charge); err != nil {
-				return nil, err
+		for _, spend := range course.Spends {
+			member := spend.PrepaidCard
+			if member.ID == 0 {
+				continue
 			}
-		}
-		if spend.Times != 0 {
-			if err := s.userService.SetRestTimesChange(member.Number, spend.Times); err != nil {
-				return nil, err
-			}
-		}
-		if spend.AnnualTimes != 0 {
-			if err := s.userService.SetRestAnnualTimesChange(member.Number, spend.AnnualTimes); err != nil {
-				return nil, err
-			}
-		}
-		if spend.Description != 0 {
-			if err := s.userService.SetEquivalentChange(member.Number, int(spend.Description)); err != nil {
-				return nil, err
-			}
-		}
-	}
 
-	if err := s.db.Model(&course).Association("Members").Clear(); err != nil {
-		return nil, err
-	}
+			updates := make(map[string]interface{}, 4)
+			if spend.Charge != 0 {
+				updates["rest_charge"] = gorm.Expr("rest_charge + ?", spend.Charge)
+			}
+			if spend.Times != 0 {
+				updates["times_count"] = gorm.Expr("times_count + ?", spend.Times)
+			}
+			if spend.AnnualTimes != 0 {
+				updates["annual_count"] = gorm.Expr("annual_count + ?", spend.AnnualTimes)
+			}
+			if spend.Description != 0 {
+				updates["equivalent_balance"] = gorm.Expr("equivalent_balance + ?", int(spend.Description))
+			}
 
-	if err := s.db.Delete(&course).Error; err != nil {
+			if len(updates) > 0 {
+				if err := tx.Model(&model.PrepaidCard{}).Where("id = ?", member.ID).Updates(updates).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		spendDelete := tx.Where("course_id = ?", course.ID).Delete(&model.Spend{})
+		if spendDelete.Error != nil {
+			return spendDelete.Error
+		}
+		if spendDelete.RowsAffected != int64(len(course.Spends)) {
+			return fmt.Errorf("课程消费记录已发生变化，请重试")
+		}
+
+		if err := tx.Exec("DELETE FROM course_member WHERE course_id = ?", course.ID).Error; err != nil {
+			return err
+		}
+
+		courseDelete := tx.Delete(&course)
+		if courseDelete.Error != nil {
+			return courseDelete.Error
+		}
+		if courseDelete.RowsAffected != 1 {
+			return fmt.Errorf("课程删除状态已发生变化，请重试")
+		}
+
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 
