@@ -26,6 +26,7 @@ import (
 	_ "ledong-db/docs"
 	"ledong-db/internal/cache"
 	"ledong-db/internal/config"
+	"ledong-db/internal/constants"
 	"ledong-db/internal/database"
 	"ledong-db/internal/handler"
 	"ledong-db/internal/logger"
@@ -37,6 +38,9 @@ import (
 func main() {
 	cfg := config.Load()
 	logger.Init(cfg.Server.LogLevel)
+	if err := constants.ConfigureBusinessTime(); err != nil {
+		logger.Fatal("业务时区初始化失败", "time_zone", constants.BusinessTimeZone, "error", err)
+	}
 
 	if err := database.Init(cfg.Database); err != nil {
 		logger.Fatal("数据库初始化失败", "error", err)
@@ -56,12 +60,14 @@ func main() {
 	userService := service.NewUserService()
 	courseService := service.NewCourseService(userService, smsService)
 	courseHandler := handler.NewCourseHandler(courseService, smsService)
+	pendingCourseService := service.NewPendingCourseService(courseService)
+	pendingCourseHandler := handler.NewPendingCourseHandler(pendingCourseService)
 	efficiencyService := service.NewEfficiencyService()
 	efficiencyHandler := handler.NewEfficiencyHandler(efficiencyService)
 	cardService := service.NewCardService(userService)
 	cardHandler := handler.NewCardHandler(cardService)
 	userHandler := handler.NewUserHandler(userService, cardService, smsService)
-	r := router.NewRouter(smsHandler, courseHandler, efficiencyHandler, userHandler, cardHandler)
+	r := router.NewRouter(smsHandler, courseHandler, efficiencyHandler, userHandler, cardHandler, pendingCourseHandler)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Server.Port,

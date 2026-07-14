@@ -8,7 +8,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHandler, efficiencyHandler *handler.EfficiencyHandler, userHandler *handler.UserHandler, cardHandler *handler.CardHandler) *gin.Engine {
+func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHandler, efficiencyHandler *handler.EfficiencyHandler, userHandler *handler.UserHandler, cardHandler *handler.CardHandler, pendingCourseHandler *handler.PendingCourseHandler) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(corsMiddleware())
@@ -19,6 +19,9 @@ func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHand
 	// api := r.Group("/api")
 	api := r.Group("/api")
 	{
+		api.GET("/pending-course", pendingCourseHandler.List)
+		api.POST("/pending-course/:id/admit", pendingCourseHandler.Admit)
+
 		// sms := api.Group("/sms")
 		// {
 		// 	sms.POST("/notify", smsHandler.Notify)
