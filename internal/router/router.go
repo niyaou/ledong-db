@@ -59,6 +59,7 @@ func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHand
 			course := prepaidCard.Group("/course")
 			{
 				course.POST("/create", courseHandler.CreateCourse)
+				course.GET("/coach/:coachId", courseHandler.CoachCourses)
 				course.DELETE("/:id/:member", courseHandler.RemoveCourseMember)
 				course.DELETE("/:id", courseHandler.RemoveCourse)
 				course.POST("/trial/:id", courseHandler.TrialCourseUpdate)
