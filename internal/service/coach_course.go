@@ -12,16 +12,33 @@ import (
 )
 
 const (
-	coachCourseDateFormat = "2006-01-02"
-	coachCourseTimeFormat = "2006-01-02 15:04:05"
-	CoachCoursePageSize   = 50
+	coachCourseMonthFormat = "2006-01"
+	coachCourseTimeFormat  = "2006-01-02 15:04:05"
 )
 
 var (
-	ErrCoachCourseInvalidDate = errors.New("日期格式错误，请使用YYYY-MM-DD")
-	ErrCoachCourseDateRange   = errors.New("开始日期不能晚于结束日期")
-	ErrCoachCourseCoachAbsent = errors.New("教练不存在或已停用")
+	ErrCoachCourseInvalidMonth = errors.New("月份格式错误，请使用YYYY-MM")
+	ErrCoachCourseCoachAbsent  = errors.New("教练不存在或已停用")
 )
+
+// CoachCourseSummaryDTO is the monthly teaching-hour breakdown. Court
+// bookings are deliberately omitted from every value in this summary.
+type CoachCourseSummaryDTO struct {
+	TotalHours   float32 `json:"totalHours"`
+	TrialHours   float32 `json:"trialHours"`
+	GroupHours   float32 `json:"groupHours"`
+	PrivateHours float32 `json:"privateHours"`
+}
+
+// MonthlyCoachCoursesDTO combines one active coach's monthly teaching-hour
+// summary with every formal course in that calendar month.
+type MonthlyCoachCoursesDTO struct {
+	CoachID   uint64                `json:"coachId"`
+	CoachName string                `json:"coachName"`
+	Month     string                `json:"month"`
+	Summary   CoachCourseSummaryDTO `json:"summary"`
+	Courses   []CoachCourseDTO      `json:"courses"`
+}
 
 // CoachCourseMemberDTO contains the member and consumption fields displayed
 // by the read-only administrator course page.
@@ -78,19 +95,15 @@ type coachCourseMemberRow struct {
 	Quantities   int
 }
 
-// CoachCourses returns one active coach's formal courses in a date range.
-// The end date is inclusive; internally it is represented as the next day's
-// exclusive midnight so sub-second course timestamps are not omitted.
-func (s *CourseService) CoachCourses(coachID uint64, startDate, endDate string, pageNum int) (*Page[CoachCourseDTO], error) {
-	start, endExclusive, err := parseCoachCourseDateRange(startDate, endDate)
+// CoachCourses returns one active coach's formal courses and teaching-hour
+// summary for a complete calendar month.
+func (s *CourseService) CoachCourses(coachID uint64, month string) (*MonthlyCoachCoursesDTO, error) {
+	start, endExclusive, err := parseCoachCourseMonth(month)
 	if err != nil {
 		return nil, err
 	}
 	if coachID == 0 {
 		return nil, ErrCoachCourseCoachAbsent
-	}
-	if pageNum < 1 {
-		pageNum = 1
 	}
 
 	var coach model.Coach
@@ -106,26 +119,17 @@ func (s *CourseService) CoachCourses(coachID uint64, startDate, endDate string, 
 
 	baseQuery := s.db.Model(&model.Course{}).
 		Where("course.coach_id = ?", coachID).
-		Where("course.start_time >= ? AND course.start_time < ?", start, endExclusive).
-		Where("course.deleted_at IS NULL")
-
-	var total int64
-	if err := baseQuery.Count(&total).Error; err != nil {
-		return nil, fmt.Errorf("统计教练课程失败: %w", err)
-	}
+		Where("course.start_time >= ? AND course.start_time < ?", start, endExclusive)
 
 	var rows []coachCourseRow
-	offset := (pageNum - 1) * CoachCoursePageSize
 	if err := baseQuery.
 		Select(`course.id, course.coach_id, course.court_id,
 			COALESCE(court.name, '') AS court_name, course.start_time,
 			course.end_time, course.duration, course.course_type,
 			course.is_adult, course.description`).
 		Joins("LEFT JOIN court ON court.id = course.court_id AND court.deleted_at IS NULL").
-		Order("course.start_time DESC").
-		Order("course.id DESC").
-		Offset(offset).
-		Limit(CoachCoursePageSize).
+		Order("course.start_time ASC").
+		Order("course.id ASC").
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("查询教练课程失败: %w", err)
 	}
@@ -140,6 +144,7 @@ func (s *CourseService) CoachCourses(coachID uint64, startDate, endDate string, 
 	}
 
 	content := make([]CoachCourseDTO, 0, len(rows))
+	summary := CoachCourseSummaryDTO{}
 	for _, row := range rows {
 		members := membersByCourse[row.ID]
 		if members == nil {
@@ -159,41 +164,39 @@ func (s *CourseService) CoachCourses(coachID uint64, startDate, endDate string, 
 			Description: row.Description,
 			MembersData: members,
 		})
+
+		switch row.CourseType {
+		case -2, -1:
+			summary.TrialHours += row.Duration
+			summary.TotalHours += row.Duration
+		case 1:
+			summary.GroupHours += row.Duration
+			summary.TotalHours += row.Duration
+		case 2:
+			summary.PrivateHours += row.Duration
+			summary.TotalHours += row.Duration
+		}
 	}
 
-	totalPages := 0
-	if total > 0 {
-		totalPages = int((total + CoachCoursePageSize - 1) / CoachCoursePageSize)
-	}
-	return &Page[CoachCourseDTO]{
-		Content:          content,
-		TotalElements:    total,
-		TotalPages:       totalPages,
-		Size:             CoachCoursePageSize,
-		Number:           pageNum - 1,
-		NumberOfElements: len(content),
-		First:            pageNum == 1,
-		Last:             totalPages == 0 || pageNum >= totalPages,
+	return &MonthlyCoachCoursesDTO{
+		CoachID:   coach.ID,
+		CoachName: coach.Name,
+		Month:     month,
+		Summary:   summary,
+		Courses:   content,
 	}, nil
 }
 
-func parseCoachCourseDateRange(startDate, endDate string) (time.Time, time.Time, error) {
+func parseCoachCourseMonth(month string) (time.Time, time.Time, error) {
 	location, err := time.LoadLocation(constants.BusinessTimeZone)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("加载业务时区失败: %w", err)
 	}
-	start, err := time.ParseInLocation(coachCourseDateFormat, startDate, location)
-	if err != nil {
-		return time.Time{}, time.Time{}, ErrCoachCourseInvalidDate
+	start, err := time.ParseInLocation(coachCourseMonthFormat, month, location)
+	if err != nil || start.Format(coachCourseMonthFormat) != month {
+		return time.Time{}, time.Time{}, ErrCoachCourseInvalidMonth
 	}
-	end, err := time.ParseInLocation(coachCourseDateFormat, endDate, location)
-	if err != nil {
-		return time.Time{}, time.Time{}, ErrCoachCourseInvalidDate
-	}
-	if start.After(end) {
-		return time.Time{}, time.Time{}, ErrCoachCourseDateRange
-	}
-	return start, end.AddDate(0, 0, 1), nil
+	return start, start.AddDate(0, 1, 0), nil
 }
 
 func (s *CourseService) loadCoachCourseMembers(courseIDs []uint64) (map[uint64][]CoachCourseMemberDTO, error) {

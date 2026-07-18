@@ -17,15 +17,13 @@ type CourseHandler struct {
 
 // CoachCourses 查询单个教练的正式课程
 // @Summary      查询单个教练课程
-// @Description  按日期范围分页查询一个有效教练的正式课程，只读
+// @Description  按自然月查询一个有效教练的全部正式课程和授课课时统计，只读
 // @Tags         课程
 // @Produce      json
 // @Param        secure    header  string  true  "安全验证头"
 // @Param        coachId   path    int     true  "教练ID"
-// @Param        startDate query   string  true  "开始日期，格式：2006-01-02"
-// @Param        endDate   query   string  true  "结束日期，格式：2006-01-02，包含全天"
-// @Param        pageNum   query   int     false "页码，从1开始，默认1"
-// @Success      200       {object} service.Page[service.CoachCourseDTO]
+// @Param        month     query   string  true  "统计月，格式：2006-01"
+// @Success      200       {object} service.MonthlyCoachCoursesDTO
 // @Failure      400       {object} Response
 // @Failure      401       {object} Response
 // @Failure      404       {object} Response
@@ -42,26 +40,16 @@ func (h *CourseHandler) CoachCourses(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "教练ID格式错误"})
 		return
 	}
-	startDate := c.Query("startDate")
-	endDate := c.Query("endDate")
-	if startDate == "" || endDate == "" {
-		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "startDate和endDate不能为空"})
+	month := c.Query("month")
+	if month == "" {
+		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "month不能为空"})
 		return
 	}
 
-	pageNum := 1
-	if raw := c.Query("pageNum"); raw != "" {
-		pageNum, err = strconv.Atoi(raw)
-		if err != nil || pageNum < 1 {
-			c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "pageNum必须是大于0的整数"})
-			return
-		}
-	}
-
-	result, err := h.service.CoachCourses(coachID, startDate, endDate, pageNum)
+	result, err := h.service.CoachCourses(coachID, month)
 	if err != nil {
 		switch {
-		case errors.Is(err, service.ErrCoachCourseInvalidDate), errors.Is(err, service.ErrCoachCourseDateRange):
+		case errors.Is(err, service.ErrCoachCourseInvalidMonth):
 			c.JSON(http.StatusBadRequest, Response{Code: 1, Message: err.Error()})
 		case errors.Is(err, service.ErrCoachCourseCoachAbsent):
 			c.JSON(http.StatusNotFound, Response{Code: 1, Message: err.Error()})
