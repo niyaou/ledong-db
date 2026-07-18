@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -12,6 +13,52 @@ import (
 type CourseHandler struct {
 	service    *service.CourseService
 	smsService *service.SmsService
+}
+
+// CoachCourses 查询单个教练的正式课程
+// @Summary      查询单个教练课程
+// @Description  按自然月查询一个有效教练的全部正式课程和授课课时统计，只读
+// @Tags         课程
+// @Produce      json
+// @Param        secure    header  string  true  "安全验证头"
+// @Param        coachId   path    int     true  "教练ID"
+// @Param        month     query   string  true  "统计月，格式：2006-01"
+// @Success      200       {object} service.MonthlyCoachCoursesDTO
+// @Failure      400       {object} Response
+// @Failure      401       {object} Response
+// @Failure      404       {object} Response
+// @Failure      500       {object} Response
+// @Router       /prepaidCard/course/coach/{coachId} [get]
+func (h *CourseHandler) CoachCourses(c *gin.Context) {
+	if !verifySecure(c) {
+		c.JSON(http.StatusUnauthorized, Response{Code: 1, Message: "未授权"})
+		return
+	}
+
+	coachID, err := strconv.ParseUint(c.Param("coachId"), 10, 64)
+	if err != nil || coachID == 0 {
+		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "教练ID格式错误"})
+		return
+	}
+	month := c.Query("month")
+	if month == "" {
+		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "month不能为空"})
+		return
+	}
+
+	result, err := h.service.CoachCourses(coachID, month)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrCoachCourseInvalidMonth):
+			c.JSON(http.StatusBadRequest, Response{Code: 1, Message: err.Error()})
+		case errors.Is(err, service.ErrCoachCourseCoachAbsent):
+			c.JSON(http.StatusNotFound, Response{Code: 1, Message: err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func NewCourseHandler(svc *service.CourseService, smsService *service.SmsService) *CourseHandler {
