@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -37,23 +38,46 @@ import (
 
 func main() {
 	cfg := config.Load()
-	logger.Init(cfg.Server.LogLevel)
+	logCloser, err := logger.Init(logger.Config{
+		Level:        cfg.Server.LogLevel,
+		File:         cfg.Server.LogFile,
+		MaxSizeMB:    cfg.Server.LogMaxSizeMB,
+		MaxBackups:   cfg.Server.LogMaxBackups,
+		MaxAgeDays:   cfg.Server.LogMaxAgeDays,
+		Compress:     cfg.Server.LogCompress,
+		UseLocalTime: cfg.Server.LogUseLocalTime,
+	})
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "initialize logging: %v\n", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := logCloser.Close(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "close log file: %v\n", err)
+		}
+	}()
+	logger.Info("logging initialized", "file", cfg.Server.LogFile, "level", cfg.Server.LogLevel, "max_size_mb", cfg.Server.LogMaxSizeMB, "max_backups", cfg.Server.LogMaxBackups, "max_age_days", cfg.Server.LogMaxAgeDays, "compress", cfg.Server.LogCompress)
+
 	if err := constants.ConfigureBusinessTime(); err != nil {
 		logger.Fatal("业务时区初始化失败", "time_zone", constants.BusinessTimeZone, "error", err)
 	}
+	logger.Info("business time zone initialized", "time_zone", constants.BusinessTimeZone)
 
 	if err := database.Init(cfg.Database); err != nil {
 		logger.Fatal("数据库初始化失败", "error", err)
 	}
+	logger.Info("database initialized", "host", cfg.Database.Host, "port", cfg.Database.Port, "database", cfg.Database.Database)
 
 	if err := cache.Init(cfg.Cache.MaxSizeMB, cfg.Cache.Shards, cfg.Cache.LifeWindow, cfg.Cache.CleanWindow); err != nil {
 		logger.Fatal("缓存初始化失败", "error", err)
 	}
+	logger.Info("cache initialized", "max_size_mb", cfg.Cache.MaxSizeMB, "shards", cfg.Cache.Shards, "life_window", cfg.Cache.LifeWindow, "clean_window", cfg.Cache.CleanWindow)
 
 	smsClient, err := tencent.NewClient(cfg.Tencent.SecretId, cfg.Tencent.SecretKey, cfg.Tencent.Region, cfg.Tencent.SmsAppId, cfg.Tencent.SignName, cfg.Tencent.TemplateId)
 	if err != nil {
 		logger.Fatal("腾讯云客户端初始化失败", "error", err)
 	}
+	logger.Info("tencent sms client initialized", "region", cfg.Tencent.Region, "sms_app_id", cfg.Tencent.SmsAppId, "template_id", cfg.Tencent.TemplateId)
 
 	smsService := service.NewSmsService(smsClient)
 	smsHandler := handler.NewSmsHandler(smsService)
@@ -83,9 +107,9 @@ func main() {
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	receivedSignal := <-quit
 
-	logger.Info("正在关闭服务器...")
+	logger.Info("server shutdown started", "signal", receivedSignal.String())
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

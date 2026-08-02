@@ -2,18 +2,60 @@ package logger
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type contextKey struct{}
 
 var defaultLogger = New(os.Stdout, "info")
 
-func Init(level string) {
-	SetDefault(New(os.Stdout, level))
+type Config struct {
+	Level        string
+	File         string
+	MaxSizeMB    int
+	MaxBackups   int
+	MaxAgeDays   int
+	Compress     bool
+	UseLocalTime bool
+}
+
+func Init(cfg Config) (io.Closer, error) {
+	return initWithWriter(cfg, os.Stdout)
+}
+
+func initWithWriter(cfg Config, console io.Writer) (io.Closer, error) {
+	if strings.TrimSpace(cfg.File) == "" {
+		return nil, errors.New("log file path cannot be empty")
+	}
+	if cfg.MaxSizeMB <= 0 {
+		return nil, errors.New("log max size must be greater than zero")
+	}
+	if cfg.MaxBackups < 0 || cfg.MaxAgeDays < 0 {
+		return nil, errors.New("log retention values cannot be negative")
+	}
+
+	directory := filepath.Dir(cfg.File)
+	if err := os.MkdirAll(directory, 0o750); err != nil {
+		return nil, err
+	}
+
+	rollingFile := &lumberjack.Logger{
+		Filename:   cfg.File,
+		MaxSize:    cfg.MaxSizeMB,
+		MaxBackups: cfg.MaxBackups,
+		MaxAge:     cfg.MaxAgeDays,
+		Compress:   cfg.Compress,
+		LocalTime:  cfg.UseLocalTime,
+	}
+	SetDefault(New(io.MultiWriter(console, rollingFile), cfg.Level))
+	return rollingFile, nil
 }
 
 func New(w io.Writer, level string) *slog.Logger {

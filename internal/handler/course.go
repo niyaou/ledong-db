@@ -185,9 +185,11 @@ func (h *CourseHandler) CreateCourse(c *gin.Context) {
 
 	course, err := h.service.CreateCourse(startTime, endTime, coachName, float32(spendingTime), courtName, descript, courseType, membersObj, isAdult)
 	if err != nil {
+		logBusinessFailure(c, "course_create", err, "start_time", startTime, "end_time", endTime, "coach", coachName, "court", courtName, "course_type", courseType)
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
+	logBusinessSuccess(c, "course_create", "course_id", course.ID, "start_time", course.StartTime, "end_time", course.EndTime, "coach_id", course.CoachID, "court_id", course.CourtID, "course_type", course.CourseType, "member_count", len(course.Members))
 
 	c.JSON(http.StatusOK, gin.H{"id": course.ID})
 }
@@ -220,15 +222,18 @@ func (h *CourseHandler) RemoveCourseMember(c *gin.Context) {
 		return
 	}
 
-	_, err = h.service.RemoveCourseMember(id, member)
+	course, err := h.service.RemoveCourseMember(id, member)
 	if err != nil {
 		if err == service.ErrUserNotFound {
+			logBusinessRejected(c, "course_member_remove", err, "course_id", id, "member", member)
 			c.JSON(http.StatusNotFound, Response{Code: 1, Message: err.Error()})
 			return
 		}
+		logBusinessFailure(c, "course_member_remove", err, "course_id", id, "member", member)
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
+	logBusinessSuccess(c, "course_member_remove", "course_id", course.ID, "member", member)
 
 	c.JSON(http.StatusOK, gin.H{})
 }
@@ -258,15 +263,18 @@ func (h *CourseHandler) RemoveCourse(c *gin.Context) {
 		return
 	}
 
-	_, err = h.service.RemoveCourse(id)
+	course, err := h.service.RemoveCourse(id)
 	if err != nil {
 		if err == service.ErrUserNotFound {
+			logBusinessRejected(c, "course_remove", err, "course_id", id)
 			c.JSON(http.StatusNotFound, Response{Code: 1, Message: err.Error()})
 			return
 		}
+		logBusinessFailure(c, "course_remove", err, "course_id", id)
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
+	logBusinessSuccess(c, "course_remove", "course_id", course.ID, "spend_count", len(course.Spends))
 
 	c.JSON(http.StatusOK, gin.H{})
 }
@@ -296,15 +304,18 @@ func (h *CourseHandler) TrialCourseUpdate(c *gin.Context) {
 		return
 	}
 
-	_, err = h.service.TrialCourseUpdate(id)
+	course, err := h.service.TrialCourseUpdate(id)
 	if err != nil {
 		if err == service.ErrUserNotFound {
+			logBusinessRejected(c, "trial_course_update", err, "course_id", id)
 			c.JSON(http.StatusNotFound, Response{Code: 1, Message: err.Error()})
 			return
 		}
+		logBusinessFailure(c, "trial_course_update", err, "course_id", id)
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
+	logBusinessSuccess(c, "trial_course_update", "course_id", course.ID, "course_type", course.CourseType)
 
 	c.JSON(http.StatusOK, gin.H{})
 }

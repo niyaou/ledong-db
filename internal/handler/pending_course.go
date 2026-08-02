@@ -42,6 +42,7 @@ func (h *PendingCourseHandler) List(c *gin.Context) {
 
 	courses, err := h.service.ListAll()
 	if err != nil {
+		logBusinessFailure(c, "pending_course_list", err)
 		writePendingCourseServiceError(c, err)
 		return
 	}
@@ -74,9 +75,16 @@ func (h *PendingCourseHandler) Admit(c *gin.Context) {
 
 	course, err := h.service.Admit(id, request.UpdatedAt, request.Course)
 	if err != nil {
+		var pendingErr *service.PendingCourseError
+		if errors.As(err, &pendingErr) && pendingCourseHTTPStatus(pendingErr.Code) < http.StatusInternalServerError {
+			logBusinessRejected(c, "pending_course_admit", err, "pending_course_id", id, "error_code", pendingErr.Code, "course_id", pendingErr.CourseID)
+		} else {
+			logBusinessFailure(c, "pending_course_admit", err, "pending_course_id", id)
+		}
 		writePendingCourseServiceError(c, err)
 		return
 	}
+	logBusinessSuccess(c, "pending_course_admit", "pending_course_id", id, "course_id", course.ID, "coach_id", course.CoachID, "court_id", course.CourtID, "course_type", course.CourseType)
 	c.JSON(http.StatusOK, gin.H{"id": course.ID})
 }
 

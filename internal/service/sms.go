@@ -58,13 +58,18 @@ func (s *SmsService) Notify(ctx context.Context, id uint64) error {
 	if err := s.db.Where("notified = ? AND id = ? AND deleted_at IS NULL", 0, id).
 		Preload("Court").Preload("Spends.PrepaidCard").
 		First(&course).Error; err != nil {
+		logger.FromContext(ctx).Error("course sms notification load failed", "course_id", id, "error", err)
 		return err
 	}
 
 	if err := s.NotifyCourse(ctx, &course); err != nil {
 		return err
 	}
-	return s.db.Save(&course).Error
+	if err := s.db.Save(&course).Error; err != nil {
+		logger.FromContext(ctx).Error("course sms notification state save failed", "course_id", id, "error", err)
+		return err
+	}
+	return nil
 }
 
 func (s *SmsService) NotifyAll(ctx context.Context, id *uint64) error {
@@ -75,6 +80,7 @@ func (s *SmsService) NotifyAll(ctx context.Context, id *uint64) error {
 
 	var courses []model.Course
 	if err := query.Preload("Court").Preload("Spends.PrepaidCard").Find(&courses).Error; err != nil {
+		logger.FromContext(ctx).Error("batch course sms notification load failed", "course_id", id, "error", err)
 		return err
 	}
 
@@ -83,10 +89,12 @@ func (s *SmsService) NotifyAll(ctx context.Context, id *uint64) error {
 			return err
 		}
 		if err := s.db.Save(&course).Error; err != nil {
+			logger.FromContext(ctx).Error("course sms notification state save failed", "course_id", course.ID, "error", err)
 			return err
 		}
 	}
 
+	logger.FromContext(ctx).Info("batch course sms notification completed", "course_count", len(courses), "course_id", id)
 	return nil
 }
 

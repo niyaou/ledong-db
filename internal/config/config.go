@@ -17,8 +17,14 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port     string `mapstructure:"port"`
-	LogLevel string `mapstructure:"log_level"`
+	Port            string `mapstructure:"port"`
+	LogLevel        string `mapstructure:"log_level"`
+	LogFile         string `mapstructure:"log_file"`
+	LogMaxSizeMB    int    `mapstructure:"log_max_size_mb"`
+	LogMaxBackups   int    `mapstructure:"log_max_backups"`
+	LogMaxAgeDays   int    `mapstructure:"log_max_age_days"`
+	LogCompress     bool   `mapstructure:"log_compress"`
+	LogUseLocalTime bool   `mapstructure:"log_use_local_time"`
 }
 
 type DatabaseConfig struct {
@@ -59,6 +65,12 @@ func Load() *Config {
 
 	v.SetDefault("server.port", "8080")
 	v.SetDefault("server.log_level", "info")
+	v.SetDefault("server.log_file", "logs/server.log")
+	v.SetDefault("server.log_max_size_mb", 100)
+	v.SetDefault("server.log_max_backups", 10)
+	v.SetDefault("server.log_max_age_days", 30)
+	v.SetDefault("server.log_compress", true)
+	v.SetDefault("server.log_use_local_time", true)
 	v.SetDefault("database.host", "localhost")
 	v.SetDefault("database.port", "3306")
 	v.SetDefault("database.user", "root")
