@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -552,11 +553,11 @@ func (s *CourseService) TrialCourseUpdate(courseId uint64) (*model.Course, error
 	return &course, nil
 }
 
-func (s *CourseService) Notify(courseId uint64) error {
+func (s *CourseService) Notify(ctx context.Context, courseId uint64) error {
 	if s.smsService == nil {
 		return errors.New("短信服务未初始化")
 	}
-	return s.smsService.Notify(courseId)
+	return s.smsService.Notify(ctx, courseId)
 }
 
 func (s *CourseService) MemberCourse(startTime, endTime, number string, pageNum, pageSize int) (*CoursePage, error) {

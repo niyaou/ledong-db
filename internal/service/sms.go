@@ -1,43 +1,78 @@
 package service
 
 import (
+	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	"ledong-db/internal/database"
+	"ledong-db/internal/logger"
 	"ledong-db/internal/model"
 	"ledong-db/pkg/tencent"
-	"strings"
 
 	"gorm.io/gorm"
 )
 
 type SmsService struct {
-	client *tencent.Client
+	client smsSender
 	db     *gorm.DB
 }
 
-func NewSmsService(client *tencent.Client) *SmsService {
+type smsSender interface {
+	SendContext(ctx context.Context, phone string, params []string) (tencent.SendResult, error)
+}
+
+func NewSmsService(client smsSender) *SmsService {
 	return &SmsService{client: client, db: database.DB}
 }
 
 func (s *SmsService) Send(phone string, params []string) error {
-	return s.client.Send(phone, params)
+	return s.SendContext(context.Background(), phone, params)
 }
 
-func (s *SmsService) Notify(id uint64) error {
+func (s *SmsService) SendContext(ctx context.Context, phone string, params []string) error {
+	log := logger.FromContext(ctx)
+	startedAt := time.Now()
+	log.Info("sms send started", "phone", phone, "param_count", len(params))
+
+	result, err := s.client.SendContext(ctx, phone, params)
+	attrs := []any{
+		"phone", phone,
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+		"provider_request_id", result.RequestID,
+		"provider_serial_no", result.SerialNo,
+		"provider_code", result.Code,
+	}
+	if err != nil {
+		log.Error("sms send failed", append(attrs, "error", err)...)
+		return err
+	}
+
+	log.Info("sms send succeeded", append(attrs, "fee", result.Fee)...)
+	return nil
+}
+
+func (s *SmsService) Notify(ctx context.Context, id uint64) error {
 	var course model.Course
 	if err := s.db.Where("notified = ? AND id = ? AND deleted_at IS NULL", 0, id).
 		Preload("Court").Preload("Spends.PrepaidCard").
 		First(&course).Error; err != nil {
+		logger.FromContext(ctx).Error("course sms notification load failed", "course_id", id, "error", err)
 		return err
 	}
 
-	if err := s.NotifyCourse(&course); err != nil {
+	if err := s.NotifyCourse(ctx, &course); err != nil {
 		return err
 	}
-	return s.db.Save(&course).Error
+	if err := s.db.Save(&course).Error; err != nil {
+		logger.FromContext(ctx).Error("course sms notification state save failed", "course_id", id, "error", err)
+		return err
+	}
+	return nil
 }
 
-func (s *SmsService) NotifyAll(id *uint64) error {
+func (s *SmsService) NotifyAll(ctx context.Context, id *uint64) error {
 	query := s.db.Where("notified = ? AND deleted_at IS NULL", 0)
 	if id != nil {
 		query = query.Where("id = ?", *id)
@@ -45,28 +80,34 @@ func (s *SmsService) NotifyAll(id *uint64) error {
 
 	var courses []model.Course
 	if err := query.Preload("Court").Preload("Spends.PrepaidCard").Find(&courses).Error; err != nil {
+		logger.FromContext(ctx).Error("batch course sms notification load failed", "course_id", id, "error", err)
 		return err
 	}
 
 	for _, course := range courses {
-		if err := s.NotifyCourse(&course); err != nil {
+		if err := s.NotifyCourse(ctx, &course); err != nil {
 			return err
 		}
 		if err := s.db.Save(&course).Error; err != nil {
+			logger.FromContext(ctx).Error("course sms notification state save failed", "course_id", course.ID, "error", err)
 			return err
 		}
 	}
 
+	logger.FromContext(ctx).Info("batch course sms notification completed", "course_count", len(courses), "course_id", id)
 	return nil
 }
 
-func (s *SmsService) NotifyCourse(course *model.Course) error {
+func (s *SmsService) NotifyCourse(ctx context.Context, course *model.Course) error {
 	startTime := course.StartTime.Format("01月02日")
 	court := course.Court.Name
 
+	sentCount := 0
+	skippedCount := 0
 	for _, spend := range course.Spends {
 		member := spend.PrepaidCard
 		if strings.HasPrefix(strings.ToLower(member.Number), "不发短信") {
+			skippedCount++
 			continue
 		}
 
@@ -90,11 +131,14 @@ func (s *SmsService) NotifyCourse(course *model.Course) error {
 			fmt.Sprintf("%.1f", member.AnnualCount),
 		}
 
-		if err := s.Send(member.Number, params); err != nil {
+		if err := s.SendContext(ctx, member.Number, params); err != nil {
+			logger.FromContext(ctx).Error("course sms notification failed", "course_id", course.ID, "sent_count", sentCount, "skipped_count", skippedCount, "error", err)
 			return err
 		}
+		sentCount++
 	}
 
 	course.Notified++
+	logger.FromContext(ctx).Info("course sms notification completed", "course_id", course.ID, "sent_count", sentCount, "skipped_count", skippedCount)
 	return nil
 }

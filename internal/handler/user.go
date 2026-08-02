@@ -36,7 +36,11 @@ func verifySecure(c *gin.Context) bool {
 		secretKey = cfg.Tencent.SecretId
 	})
 	secure := c.GetHeader("secure")
-	return secure == secretKey
+	if secure == secretKey {
+		return true
+	}
+	logBusinessRejected(c, "authorization", nil, "method", c.Request.Method, "path", c.Request.URL.Path, "remote_addr", c.Request.RemoteAddr)
+	return false
 }
 
 // Register 注册用户
@@ -71,12 +75,15 @@ func (h *UserHandler) Register(c *gin.Context) {
 	user, err := h.userService.CreateUser(name, number, court)
 	if err != nil {
 		if err == service.ErrUserExist {
+			logBusinessRejected(c, "user_register", err, "number", number, "court", court)
 			c.JSON(http.StatusBadRequest, Response{Code: 1, Message: err.Error()})
 			return
 		}
+		logBusinessFailure(c, "user_register", err, "number", number, "court", court)
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
+	logBusinessSuccess(c, "user_register", "user_id", user.ID, "number", user.Number, "court", user.Court)
 
 	c.JSON(http.StatusOK, gin.H{
 		"token": "------",
@@ -153,9 +160,11 @@ func (h *UserHandler) Charged(c *gin.Context) {
 
 	charge, err := h.cardService.SetRestCharge(number, charged, times, annualTimes, annualExpireTime, worth, court, description, coach, time)
 	if err != nil {
+		logBusinessFailure(c, "user_charge", err, "number", number, "court", court, "coach", coach)
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
+	logBusinessSuccess(c, "user_charge", "charge_id", charge.ID, "user_id", charge.PrepaidCardID, "number", number, "charge", charge.Charge, "times", charge.Times, "annual_times", charge.AnnualTimes, "worth", charge.Worth, "court", charge.Court)
 
 	c.JSON(http.StatusOK, charge)
 }
@@ -303,12 +312,15 @@ func (h *UserHandler) SetYonthAndAdult(c *gin.Context) {
 	user, err := h.userService.SetYonthAndAdult(number, yonth, adult)
 	if err != nil {
 		if err == service.ErrUserNotFound {
+			logBusinessRejected(c, "member_type_update", err, "number", number)
 			c.JSON(http.StatusNotFound, Response{Code: 1, Message: err.Error()})
 			return
 		}
+		logBusinessFailure(c, "member_type_update", err, "number", number)
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
+	logBusinessSuccess(c, "member_type_update", "user_id", user.ID, "number", number, "youths", user.Younths, "adults", user.Adults)
 
 	c.JSON(http.StatusOK, user)
 }
@@ -338,15 +350,18 @@ func (h *UserHandler) RetreatCharge(c *gin.Context) {
 		return
 	}
 
-	_, err = h.cardService.RetreatCharge(id)
+	charge, err := h.cardService.RetreatCharge(id)
 	if err != nil {
 		if err == service.ErrUserNotFound {
+			logBusinessRejected(c, "charge_refund", err, "charge_id", id)
 			c.JSON(http.StatusNotFound, Response{Code: 1, Message: err.Error()})
 			return
 		}
+		logBusinessFailure(c, "charge_refund", err, "charge_id", id)
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
+	logBusinessSuccess(c, "charge_refund", "charge_id", charge.ID, "user_id", charge.PrepaidCardID, "charge", charge.Charge, "times", charge.Times, "annual_times", charge.AnnualTimes, "worth", charge.Worth)
 
 	c.JSON(http.StatusOK, gin.H{})
 }
@@ -421,7 +436,7 @@ func (h *UserHandler) NotifyCourse(c *gin.Context) {
 		id = &parsedID
 	}
 
-	if err := h.smsService.NotifyAll(id); err != nil {
+	if err := h.smsService.NotifyAll(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
