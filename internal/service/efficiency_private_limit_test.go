@@ -13,15 +13,15 @@ func TestPrivateCourseMonthlyLimitIncludesFirstHundredAndExcludesRest(t *testing
 	lessonTime := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.Local)
 
 	for i := 1; i <= CoachMonthlyPrivateLimit; i++ {
-		if privateCourseExceedsMonthlyLimit(counts, 42, lessonTime, 2) {
+		if privateCourseExceedsMonthlyLimit(counts, 42, lessonTime, 2, 1) {
 			t.Fatalf("private course %d was excluded; first %d must be included", i, CoachMonthlyPrivateLimit)
 		}
 	}
 
-	if !privateCourseExceedsMonthlyLimit(counts, 42, lessonTime, 2) {
+	if !privateCourseExceedsMonthlyLimit(counts, 42, lessonTime, 2, 1) {
 		t.Fatalf("private course %d must be excluded", CoachMonthlyPrivateLimit+1)
 	}
-	if !privateCourseExceedsMonthlyLimit(counts, 42, lessonTime, 2) {
+	if !privateCourseExceedsMonthlyLimit(counts, 42, lessonTime, 2, 1) {
 		t.Fatalf("courses after the limit must remain excluded")
 	}
 }
@@ -31,13 +31,13 @@ func TestPrivateCourseMonthlyLimitAppliesToEveryCoachIndependently(t *testing.T)
 	lessonTime := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.Local)
 
 	for i := 0; i < CoachMonthlyPrivateLimit; i++ {
-		privateCourseExceedsMonthlyLimit(counts, 1, lessonTime, 2)
+		privateCourseExceedsMonthlyLimit(counts, 1, lessonTime, 2, 1)
 	}
 
-	if !privateCourseExceedsMonthlyLimit(counts, 1, lessonTime, 2) {
+	if !privateCourseExceedsMonthlyLimit(counts, 1, lessonTime, 2, 1) {
 		t.Fatal("coach 1 must be over the monthly limit")
 	}
-	if privateCourseExceedsMonthlyLimit(counts, 2, lessonTime, 2) {
+	if privateCourseExceedsMonthlyLimit(counts, 2, lessonTime, 2, 1) {
 		t.Fatal("coach 2 must have an independent monthly limit")
 	}
 }
@@ -47,13 +47,13 @@ func TestPrivateCourseMonthlyLimitResetsForMonthAndYear(t *testing.T) {
 	july2026 := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.Local)
 
 	for i := 0; i < CoachMonthlyPrivateLimit; i++ {
-		privateCourseExceedsMonthlyLimit(counts, 7, july2026, 2)
+		privateCourseExceedsMonthlyLimit(counts, 7, july2026, 2, 1)
 	}
 
-	if privateCourseExceedsMonthlyLimit(counts, 7, july2026.AddDate(0, 1, 0), 2) {
+	if privateCourseExceedsMonthlyLimit(counts, 7, july2026.AddDate(0, 1, 0), 2, 1) {
 		t.Fatal("a new month must start a new limit")
 	}
-	if privateCourseExceedsMonthlyLimit(counts, 7, july2026.AddDate(1, 0, 0), 2) {
+	if privateCourseExceedsMonthlyLimit(counts, 7, july2026.AddDate(1, 0, 0), 2, 1) {
 		t.Fatal("the same month number in a new year must start a new limit")
 	}
 }
@@ -63,18 +63,38 @@ func TestNonPrivateAndUnassignedCoursesDoNotConsumePrivateLimit(t *testing.T) {
 	lessonTime := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.Local)
 
 	for i := 0; i < CoachMonthlyPrivateLimit+10; i++ {
-		if privateCourseExceedsMonthlyLimit(counts, 9, lessonTime, 1) {
+		if privateCourseExceedsMonthlyLimit(counts, 9, lessonTime, 1, 1) {
 			t.Fatal("group courses must never be excluded by the private-course limit")
 		}
-		if privateCourseExceedsMonthlyLimit(counts, 0, lessonTime, 2) {
+		if privateCourseExceedsMonthlyLimit(counts, 0, lessonTime, 2, 1) {
 			t.Fatal("courses without a coach must not use a coach limit")
 		}
 	}
 
 	for i := 1; i <= CoachMonthlyPrivateLimit; i++ {
-		if privateCourseExceedsMonthlyLimit(counts, 9, lessonTime, 2) {
+		if privateCourseExceedsMonthlyLimit(counts, 9, lessonTime, 2, 1) {
 			t.Fatalf("private course %d was excluded after unrelated courses", i)
 		}
+	}
+}
+
+func TestPrivateCoursesWithoutConsumptionDoNotUseMonthlyLimit(t *testing.T) {
+	counts := make(map[coachMonthKey]int)
+	lessonTime := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.Local)
+
+	for i := 0; i < CoachMonthlyPrivateLimit+10; i++ {
+		if privateCourseExceedsMonthlyLimit(counts, 9, lessonTime, 2, 0) {
+			t.Fatal("a private course without valid consumption must not be excluded")
+		}
+	}
+
+	for i := 1; i <= CoachMonthlyPrivateLimit; i++ {
+		if privateCourseExceedsMonthlyLimit(counts, 9, lessonTime, 2, 1) {
+			t.Fatalf("effective private course %d was excluded after no-consumption courses", i)
+		}
+	}
+	if !privateCourseExceedsMonthlyLimit(counts, 9, lessonTime, 2, 1) {
+		t.Fatalf("effective private course %d must be excluded", CoachMonthlyPrivateLimit+1)
 	}
 }
 
@@ -125,8 +145,13 @@ func TestGetCourseStatsAppliesSharedMonthlyLimitToCoachAndCampus(t *testing.T) {
 		"course_type", "duration", "quantities", "spend",
 	})
 
-	// Sixty earlier private courses consume the same coach's allowance without
-	// contributing to the requested partial-month report.
+	// Earlier private courses without consumption do not consume the allowance.
+	for i := 0; i < 10; i++ {
+		startTime := time.Date(2026, time.July, 1, 8, i, 0, 0, shanghai)
+		rows.AddRow("coach", "campus A", 8, startTime, 2, 1, 0, 0)
+	}
+	// Sixty earlier effective private courses consume the same coach's allowance
+	// without contributing to the requested partial-month report.
 	for i := 1; i <= 60; i++ {
 		startTime := time.Date(2026, time.July, 1, 9, i, 0, 0, shanghai)
 		rows.AddRow("coach", "campus A", 8, startTime, 2, 1, 1, 0)

@@ -118,9 +118,14 @@ type coachMonthKey struct {
 	month   time.Month
 }
 
-func privateCourseExceedsMonthlyLimit(counts map[coachMonthKey]int, coachID uint64, startTime time.Time, courseType int) bool {
+func privateCourseExceedsMonthlyLimit(counts map[coachMonthKey]int, coachID uint64, startTime time.Time, courseType, quantities int) bool {
 	// Group courses must never consume the private-course allowance.
 	if courseType != 2 {
+		return false
+	}
+	// Courses without valid consumption neither participate in occupancy nor
+	// consume one of the 100 monthly private-course slots.
+	if quantities <= 0 {
 		return false
 	}
 	// A course without a coach cannot be assigned to a coach's allowance.
@@ -213,6 +218,7 @@ func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]cour
 			detail.CoachID,
 			detail.StartTime,
 			detail.CourseType,
+			detail.Quantities,
 		)
 		if detail.StartTime.Before(startTime) {
 			continue
