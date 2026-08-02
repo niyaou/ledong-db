@@ -421,7 +421,7 @@ func (h *UserHandler) NotifyCourse(c *gin.Context) {
 		id = &parsedID
 	}
 
-	if err := h.smsService.NotifyAll(id); err != nil {
+	if err := h.smsService.NotifyAll(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}

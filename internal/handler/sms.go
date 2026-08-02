@@ -43,7 +43,7 @@ func (h *SmsHandler) Notify(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Notify(req.ID); err != nil {
+	if err := h.service.Notify(c.Request.Context(), req.ID); err != nil {
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}

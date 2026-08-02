@@ -9,9 +9,9 @@ import (
 )
 
 func NewRouter(smsHandler *handler.SmsHandler, courseHandler *handler.CourseHandler, efficiencyHandler *handler.EfficiencyHandler, userHandler *handler.UserHandler, cardHandler *handler.CardHandler, pendingCourseHandler *handler.PendingCourseHandler) *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
 
-	r.Use(corsMiddleware())
+	r.Use(requestLoggingMiddleware(), recoveryMiddleware(), corsMiddleware())
 
 	r.GET("/health", healthCheck)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -87,9 +87,9 @@ func corsMiddleware() gin.HandlerFunc {
 		} else {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		}
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, X-Request-ID, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
-		c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers")
+		c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length, X-Request-ID, Access-Control-Allow-Origin, Access-Control-Allow-Headers")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)

@@ -1,15 +1,24 @@
 package logger
 
 import (
+	"context"
+	"io"
 	"log/slog"
 	"os"
+	"strings"
 )
 
-var defaultLogger *slog.Logger
+type contextKey struct{}
+
+var defaultLogger = New(os.Stdout, "info")
 
 func Init(level string) {
+	SetDefault(New(os.Stdout, level))
+}
+
+func New(w io.Writer, level string) *slog.Logger {
 	var logLevel slog.Level
-	switch level {
+	switch strings.ToLower(level) {
 	case "debug":
 		logLevel = slog.LevelDebug
 	case "info":
@@ -26,14 +35,32 @@ func Init(level string) {
 		Level: logLevel,
 	}
 
-	defaultLogger = slog.New(slog.NewTextHandler(os.Stdout, opts))
+	return slog.New(slog.NewJSONHandler(w, opts))
 }
 
 func Default() *slog.Logger {
-	if defaultLogger == nil {
-		defaultLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	}
 	return defaultLogger
+}
+
+func SetDefault(log *slog.Logger) {
+	if log == nil {
+		return
+	}
+	defaultLogger = log
+	slog.SetDefault(log)
+}
+
+func WithContext(ctx context.Context, log *slog.Logger) context.Context {
+	return context.WithValue(ctx, contextKey{}, log)
+}
+
+func FromContext(ctx context.Context) *slog.Logger {
+	if ctx != nil {
+		if log, ok := ctx.Value(contextKey{}).(*slog.Logger); ok && log != nil {
+			return log
+		}
+	}
+	return Default()
 }
 
 func Debug(msg string, args ...any) {

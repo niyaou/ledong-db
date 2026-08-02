@@ -334,7 +334,7 @@ func (h *CourseHandler) NotifyCourse(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Notify(courseId); err != nil {
+	if err := h.service.Notify(c.Request.Context(), courseId); err != nil {
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
@@ -397,7 +397,7 @@ func (h *CourseHandler) CourseSm(c *gin.Context) {
 		return
 	}
 
-	if err := h.smsService.Send(number, paramsStr); err != nil {
+	if err := h.smsService.SendContext(c.Request.Context(), number, paramsStr); err != nil {
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
 		return
 	}
