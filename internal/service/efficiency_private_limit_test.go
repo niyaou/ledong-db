@@ -93,6 +93,25 @@ func TestCalendarMonthStartPreservesLocation(t *testing.T) {
 	}
 }
 
+func TestApplyCappedAnalyseIgnoresRawCoursesBeyondLimit(t *testing.T) {
+	item := &AnalyseData{
+		Courses:          130,
+		Members:          290,
+		WorkTime:         150,
+		truncatedCourses: 100,
+		truncatedMembers: 250,
+	}
+
+	applyCappedAnalyse(item)
+
+	if item.Analyse != 2.5 || item.AdjustedAnalyse != 2.5 {
+		t.Fatalf("rates = analyse %.3f, adjusted %.3f; want both 2.500", item.Analyse, item.AdjustedAnalyse)
+	}
+	if item.Courses != 130 || item.Members != 290 || item.WorkTime != 150 {
+		t.Fatalf("raw reporting fields changed: %+v", item)
+	}
+}
+
 func TestGetCourseStatsAppliesSharedMonthlyLimitToCoachAndCampus(t *testing.T) {
 	db, mock := newRemoveCourseTestDB(t)
 	shanghai, err := time.LoadLocation("Asia/Shanghai")
