@@ -24,6 +24,60 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/coach-submissions": {
+            "get": {
+                "description": "分页混合返回待审课程和待知悉充值，仅用于管理员收件箱",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "教练填报"
+                ],
+                "summary": "查询教练待处理填报",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码，从1开始",
+                        "name": "pageNum",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "每页数量，最大100",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.CoachSubmissionPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/coach/efficient": {
             "get": {
                 "description": "根据时间范围统计教练和校区的效率数据",
@@ -77,7 +131,7 @@ const docTemplate = `{
         },
         "/course/total": {
             "get": {
-                "description": "根据开始时间查询课程列表，支持按会员编号过滤和分页",
+                "description": "根据开始和结束时间查询课程列表，支持按会员编号过滤和分页",
                 "consumes": [
                     "application/json"
                 ],
@@ -95,6 +149,12 @@ const docTemplate = `{
                         "name": "startTime",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "结束时间，格式：2006-01-02 15:04:05",
+                        "name": "endTime",
+                        "in": "query"
                     },
                     {
                         "type": "string",
@@ -146,6 +206,73 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/prepaidCard/course/coach/{coachId}": {
+            "get": {
+                "description": "按自然月查询一个有效教练的全部正式课程和授课课时统计，只读",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "课程"
+                ],
+                "summary": "查询单个教练课程",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "安全验证头",
+                        "name": "secure",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "教练ID",
+                        "name": "coachId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "统计月，格式：2006-01",
+                        "name": "month",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.MonthlyCoachCoursesDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
                         }
                     }
                 }
@@ -628,6 +755,151 @@ const docTemplate = `{
                 }
             }
         },
+        "/recharge-notices": {
+            "get": {
+                "description": "按状态和业务日期分页查询充值待办历史",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "教练填报"
+                ],
+                "summary": "查询充值待办",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "PENDING或ACKNOWLEDGED",
+                        "name": "status",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码，从1开始",
+                        "name": "pageNum",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "每页数量，最大100",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "开始业务日期 YYYY-MM-DD",
+                        "name": "startDate",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "结束业务日期 YYYY-MM-DD",
+                        "name": "endDate",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.RechargeNoticePage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/recharge-notices/{id}/acknowledge": {
+            "post": {
+                "description": "按内容版本并发确认；相同版本重复请求幂等成功",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "教练填报"
+                ],
+                "summary": "确认已知悉充值待办",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "充值待办ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "内容版本",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.acknowledgeRechargeNoticeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.RechargeNoticeDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.rechargeNoticeErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/sms/notify": {
             "post": {
                 "description": "按照课程查询用户并发送短信通知",
@@ -787,15 +1059,13 @@ const docTemplate = `{
                         "type": "string",
                         "description": "场地",
                         "name": "court",
-                        "in": "formData",
-                        "required": true
+                        "in": "formData"
                     },
                     {
                         "type": "string",
                         "description": "教练",
                         "name": "coach",
-                        "in": "formData",
-                        "required": true
+                        "in": "formData"
                     },
                     {
                         "type": "string",
@@ -1289,22 +1559,47 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.acknowledgeRechargeNoticeRequest": {
+            "type": "object",
+            "required": [
+                "version"
+            ],
+            "properties": {
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.rechargeNoticeErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
         "model.Charge": {
             "type": "object",
             "properties": {
-                "annual_times": {
+                "annualTimes": {
                     "type": "number"
                 },
                 "charge": {
                     "type": "number"
                 },
-                "charged_time": {
+                "chargedTime": {
                     "type": "string"
                 },
                 "coach": {
                     "$ref": "#/definitions/model.Coach"
                 },
-                "coach_id": {
+                "coachId": {
                     "type": "integer"
                 },
                 "court": {
@@ -1319,7 +1614,7 @@ const docTemplate = `{
                 "notified": {
                     "type": "integer"
                 },
-                "prepaid_card": {
+                "prepaidCard": {
                     "description": "关联关系",
                     "allOf": [
                         {
@@ -1327,7 +1622,7 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "prepaid_card_id": {
+                "prepaidCardId": {
                     "description": "外键字段",
                     "type": "integer"
                 },
@@ -1357,7 +1652,7 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
-                "is_active": {
+                "isActive": {
                     "type": "integer"
                 },
                 "level": {
@@ -1377,10 +1672,7 @@ const docTemplate = `{
                 "coach": {
                     "$ref": "#/definitions/model.Coach"
                 },
-                "coach_id": {
-                    "type": "integer"
-                },
-                "course_type": {
+                "courseType": {
                     "description": "-2体验课未成单,-1体验课成单,0订场，1班课，2私教",
                     "type": "integer"
                 },
@@ -1392,23 +1684,19 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "court_id": {
-                    "description": "外键字段",
-                    "type": "integer"
-                },
                 "description": {
                     "type": "string"
                 },
                 "duration": {
                     "type": "number"
                 },
-                "end_time": {
+                "endTime": {
                     "type": "string"
                 },
                 "id": {
                     "type": "integer"
                 },
-                "is_adult": {
+                "isAdult": {
                     "description": "1=成人课程, 0=儿童课程",
                     "type": "integer"
                 },
@@ -1427,7 +1715,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/model.Spend"
                     }
                 },
-                "start_time": {
+                "startTime": {
                     "type": "string"
                 }
             }
@@ -1444,7 +1732,7 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
-                "is_active": {
+                "isActive": {
                     "type": "integer"
                 },
                 "name": {
@@ -1458,10 +1746,10 @@ const docTemplate = `{
                 "adults": {
                     "type": "integer"
                 },
-                "annual_count": {
+                "annualCount": {
                     "type": "number"
                 },
-                "annual_expire_time": {
+                "annualExpireTime": {
                     "type": "string"
                 },
                 "charges": {
@@ -1480,7 +1768,7 @@ const docTemplate = `{
                 "court": {
                     "type": "string"
                 },
-                "equivalent_balance": {
+                "equivalentBalance": {
                     "type": "integer"
                 },
                 "id": {
@@ -1492,7 +1780,7 @@ const docTemplate = `{
                 "number": {
                     "type": "string"
                 },
-                "rest_charge": {
+                "restCharge": {
                     "type": "number"
                 },
                 "spends": {
@@ -1501,10 +1789,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/model.Spend"
                     }
                 },
-                "times_count": {
+                "timesCount": {
                     "type": "number"
                 },
-                "times_expire_time": {
+                "timesExpireTime": {
                     "type": "string"
                 },
                 "younths": {
@@ -1515,12 +1803,15 @@ const docTemplate = `{
         "model.Spend": {
             "type": "object",
             "properties": {
-                "annual_times": {
+                "annualTimes": {
                     "type": "number"
                 },
                 "charge": {
                     "description": "消费金额",
                     "type": "number"
+                },
+                "course": {
+                    "$ref": "#/definitions/model.Course"
                 },
                 "description": {
                     "description": "注意：保持为float32类型",
@@ -1528,6 +1819,14 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "prepaidCard": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.PrepaidCard"
+                        }
+                    ]
                 },
                 "quantities": {
                     "type": "integer"
@@ -1540,22 +1839,32 @@ const docTemplate = `{
         "service.AnalyseData": {
             "type": "object",
             "properties": {
+                "adjustedAnalyse": {
+                    "description": "与 Analyse 一致，保留字段兼容性",
+                    "type": "number"
+                },
                 "analyse": {
+                    "description": "满班率（所有教练每月私教课上限100节）",
                     "type": "number"
                 },
                 "courses": {
+                    "description": "有效课程数（原始值，不受截断影响）",
                     "type": "number"
                 },
                 "deal": {
+                    "description": "成单数量",
                     "type": "number"
                 },
                 "members": {
+                    "description": "总成员数（原始值，不受截断影响）",
                     "type": "number"
                 },
                 "trial": {
+                    "description": "体验课数量",
                     "type": "number"
                 },
                 "workTime": {
+                    "description": "工作时长",
                     "type": "number"
                 }
             }
@@ -1567,6 +1876,148 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/model.Charge"
+                    }
+                },
+                "first": {
+                    "type": "boolean"
+                },
+                "last": {
+                    "type": "boolean"
+                },
+                "number": {
+                    "type": "integer"
+                },
+                "numberOfElements": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "totalElements": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.CoachCourseDTO": {
+            "type": "object",
+            "properties": {
+                "coachId": {
+                    "type": "integer"
+                },
+                "coachName": {
+                    "type": "string"
+                },
+                "courseType": {
+                    "type": "integer"
+                },
+                "courtId": {
+                    "type": "integer"
+                },
+                "courtName": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "duration": {
+                    "type": "number"
+                },
+                "endTime": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isAdult": {
+                    "type": "integer"
+                },
+                "membersData": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.CoachCourseMemberDTO"
+                    }
+                },
+                "startTime": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.CoachCourseMemberDTO": {
+            "type": "object",
+            "properties": {
+                "annualTimes": {
+                    "type": "number"
+                },
+                "charge": {
+                    "type": "number"
+                },
+                "description": {
+                    "type": "number"
+                },
+                "memberId": {
+                    "type": "integer"
+                },
+                "memberName": {
+                    "type": "string"
+                },
+                "memberNumber": {
+                    "type": "string"
+                },
+                "quantities": {
+                    "type": "integer"
+                },
+                "times": {
+                    "type": "number"
+                }
+            }
+        },
+        "service.CoachCourseSummaryDTO": {
+            "type": "object",
+            "properties": {
+                "groupHours": {
+                    "type": "number"
+                },
+                "privateHours": {
+                    "type": "number"
+                },
+                "totalHours": {
+                    "type": "number"
+                },
+                "trialHours": {
+                    "type": "number"
+                }
+            }
+        },
+        "service.CoachSubmission": {
+            "type": "object",
+            "properties": {
+                "businessDate": {
+                    "type": "string"
+                },
+                "course": {
+                    "$ref": "#/definitions/service.PendingCourseDTO"
+                },
+                "rechargeNotice": {
+                    "$ref": "#/definitions/service.RechargeNoticeDTO"
+                },
+                "submissionType": {
+                    "type": "string"
+                },
+                "submittedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.CoachSubmissionPage": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.CoachSubmission"
                     }
                 },
                 "first": {
@@ -1644,6 +2095,199 @@ const docTemplate = `{
                             "$ref": "#/definitions/service.RevenueData"
                         }
                     }
+                }
+            }
+        },
+        "service.MonthlyCoachCoursesDTO": {
+            "type": "object",
+            "properties": {
+                "coachId": {
+                    "type": "integer"
+                },
+                "coachName": {
+                    "type": "string"
+                },
+                "courses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.CoachCourseDTO"
+                    }
+                },
+                "month": {
+                    "type": "string"
+                },
+                "summary": {
+                    "$ref": "#/definitions/service.CoachCourseSummaryDTO"
+                }
+            }
+        },
+        "service.PendingCourseDTO": {
+            "type": "object",
+            "properties": {
+                "coachId": {
+                    "type": "integer"
+                },
+                "coachName": {
+                    "type": "string"
+                },
+                "courseType": {
+                    "type": "integer"
+                },
+                "courtId": {
+                    "type": "integer"
+                },
+                "courtName": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "duration": {
+                    "type": "number"
+                },
+                "endTime": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isAdult": {
+                    "type": "integer"
+                },
+                "membersData": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.PendingCourseMemberDTO"
+                    }
+                },
+                "startTime": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.PendingCourseMemberDTO": {
+            "type": "object",
+            "properties": {
+                "annualCount": {
+                    "type": "number"
+                },
+                "annualTimes": {
+                    "type": "number"
+                },
+                "charge": {
+                    "type": "number"
+                },
+                "description": {
+                    "type": "number"
+                },
+                "memberId": {
+                    "type": "integer"
+                },
+                "memberName": {
+                    "type": "string"
+                },
+                "memberNumber": {
+                    "type": "string"
+                },
+                "quantities": {
+                    "type": "integer"
+                },
+                "restCharge": {
+                    "type": "number"
+                },
+                "times": {
+                    "type": "number"
+                },
+                "timesCount": {
+                    "type": "number"
+                }
+            }
+        },
+        "service.RechargeNoticeDTO": {
+            "type": "object",
+            "properties": {
+                "acknowledgedAt": {
+                    "type": "string"
+                },
+                "coachActive": {
+                    "type": "boolean"
+                },
+                "coachId": {
+                    "type": "integer"
+                },
+                "coachName": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "memberActive": {
+                    "type": "boolean"
+                },
+                "memberId": {
+                    "type": "integer"
+                },
+                "memberName": {
+                    "type": "string"
+                },
+                "memberNumber": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "rechargeDate": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.RechargeNoticePage": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.RechargeNoticeDTO"
+                    }
+                },
+                "first": {
+                    "type": "boolean"
+                },
+                "last": {
+                    "type": "boolean"
+                },
+                "number": {
+                    "type": "integer"
+                },
+                "numberOfElements": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "totalElements": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
                 }
             }
         },
