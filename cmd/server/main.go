@@ -86,12 +86,14 @@ func main() {
 	courseHandler := handler.NewCourseHandler(courseService, smsService)
 	pendingCourseService := service.NewPendingCourseService(courseService)
 	pendingCourseHandler := handler.NewPendingCourseHandler(pendingCourseService)
+	rechargeNoticeService := service.NewRechargeNoticeService(pendingCourseService)
+	rechargeNoticeHandler := handler.NewRechargeNoticeHandler(rechargeNoticeService)
 	efficiencyService := service.NewEfficiencyService()
 	efficiencyHandler := handler.NewEfficiencyHandler(efficiencyService)
 	cardService := service.NewCardService(userService)
 	cardHandler := handler.NewCardHandler(cardService)
 	userHandler := handler.NewUserHandler(userService, cardService, smsService)
-	r := router.NewRouter(smsHandler, courseHandler, efficiencyHandler, userHandler, cardHandler, pendingCourseHandler)
+	r := router.NewRouter(smsHandler, courseHandler, efficiencyHandler, userHandler, cardHandler, pendingCourseHandler, rechargeNoticeHandler)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Server.Port,

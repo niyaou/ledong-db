@@ -20,17 +20,33 @@ definitions:
         example: success
         type: string
     type: object
+  handler.acknowledgeRechargeNoticeRequest:
+    properties:
+      version:
+        type: integer
+    required:
+    - version
+    type: object
+  handler.rechargeNoticeErrorResponse:
+    properties:
+      code:
+        type: integer
+      errorCode:
+        type: string
+      message:
+        type: string
+    type: object
   model.Charge:
     properties:
-      annual_times:
+      annualTimes:
         type: number
       charge:
         type: number
-      charged_time:
+      chargedTime:
         type: string
       coach:
         $ref: '#/definitions/model.Coach'
-      coach_id:
+      coachId:
         type: integer
       court:
         type: string
@@ -40,11 +56,11 @@ definitions:
         type: integer
       notified:
         type: integer
-      prepaid_card:
+      prepaidCard:
         allOf:
         - $ref: '#/definitions/model.PrepaidCard'
         description: 关联关系
-      prepaid_card_id:
+      prepaidCardId:
         description: 外键字段
         type: integer
       times:
@@ -64,7 +80,7 @@ definitions:
         type: array
       id:
         type: integer
-      is_active:
+      isActive:
         type: integer
       level:
         type: integer
@@ -77,27 +93,22 @@ definitions:
     properties:
       coach:
         $ref: '#/definitions/model.Coach'
-      coach_id:
-        type: integer
-      course_type:
+      courseType:
         description: -2体验课未成单,-1体验课成单,0订场，1班课，2私教
         type: integer
       court:
         allOf:
         - $ref: '#/definitions/model.Court'
         description: 关联关系
-      court_id:
-        description: 外键字段
-        type: integer
       description:
         type: string
       duration:
         type: number
-      end_time:
+      endTime:
         type: string
       id:
         type: integer
-      is_adult:
+      isAdult:
         description: 1=成人课程, 0=儿童课程
         type: integer
       member:
@@ -110,7 +121,7 @@ definitions:
         items:
           $ref: '#/definitions/model.Spend'
         type: array
-      start_time:
+      startTime:
         type: string
     type: object
   model.Court:
@@ -121,7 +132,7 @@ definitions:
         type: array
       id:
         type: integer
-      is_active:
+      isActive:
         type: integer
       name:
         type: string
@@ -130,9 +141,9 @@ definitions:
     properties:
       adults:
         type: integer
-      annual_count:
+      annualCount:
         type: number
-      annual_expire_time:
+      annualExpireTime:
         type: string
       charges:
         items:
@@ -145,7 +156,7 @@ definitions:
         type: array
       court:
         type: string
-      equivalent_balance:
+      equivalentBalance:
         type: integer
       id:
         type: integer
@@ -153,31 +164,37 @@ definitions:
         type: string
       number:
         type: string
-      rest_charge:
+      restCharge:
         type: number
       spends:
         items:
           $ref: '#/definitions/model.Spend'
         type: array
-      times_count:
+      timesCount:
         type: number
-      times_expire_time:
+      timesExpireTime:
         type: string
       younths:
         type: integer
     type: object
   model.Spend:
     properties:
-      annual_times:
+      annualTimes:
         type: number
       charge:
         description: 消费金额
         type: number
+      course:
+        $ref: '#/definitions/model.Course'
       description:
         description: 注意：保持为float32类型
         type: number
       id:
         type: integer
+      prepaidCard:
+        allOf:
+        - $ref: '#/definitions/model.PrepaidCard'
+        description: 关联关系
       quantities:
         type: integer
       times:
@@ -185,17 +202,26 @@ definitions:
     type: object
   service.AnalyseData:
     properties:
+      adjustedAnalyse:
+        description: 与 Analyse 一致，保留字段兼容性
+        type: number
       analyse:
+        description: 满班率（所有教练每月私教课上限100节）
         type: number
       courses:
+        description: 有效课程数（原始值，不受截断影响）
         type: number
       deal:
+        description: 成单数量
         type: number
       members:
+        description: 总成员数（原始值，不受截断影响）
         type: number
       trial:
+        description: 体验课数量
         type: number
       workTime:
+        description: 工作时长
         type: number
     type: object
   service.ChargePage:
@@ -203,6 +229,99 @@ definitions:
       content:
         items:
           $ref: '#/definitions/model.Charge'
+        type: array
+      first:
+        type: boolean
+      last:
+        type: boolean
+      number:
+        type: integer
+      numberOfElements:
+        type: integer
+      size:
+        type: integer
+      totalElements:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.CoachCourseDTO:
+    properties:
+      coachId:
+        type: integer
+      coachName:
+        type: string
+      courseType:
+        type: integer
+      courtId:
+        type: integer
+      courtName:
+        type: string
+      description:
+        type: string
+      duration:
+        type: number
+      endTime:
+        type: string
+      id:
+        type: integer
+      isAdult:
+        type: integer
+      membersData:
+        items:
+          $ref: '#/definitions/service.CoachCourseMemberDTO'
+        type: array
+      startTime:
+        type: string
+    type: object
+  service.CoachCourseMemberDTO:
+    properties:
+      annualTimes:
+        type: number
+      charge:
+        type: number
+      description:
+        type: number
+      memberId:
+        type: integer
+      memberName:
+        type: string
+      memberNumber:
+        type: string
+      quantities:
+        type: integer
+      times:
+        type: number
+    type: object
+  service.CoachCourseSummaryDTO:
+    properties:
+      groupHours:
+        type: number
+      privateHours:
+        type: number
+      totalHours:
+        type: number
+      trialHours:
+        type: number
+    type: object
+  service.CoachSubmission:
+    properties:
+      businessDate:
+        type: string
+      course:
+        $ref: '#/definitions/service.PendingCourseDTO'
+      rechargeNotice:
+        $ref: '#/definitions/service.RechargeNoticeDTO'
+      submissionType:
+        type: string
+      submittedAt:
+        type: string
+    type: object
+  service.CoachSubmissionPage:
+    properties:
+      content:
+        items:
+          $ref: '#/definitions/service.CoachSubmission'
         type: array
       first:
         type: boolean
@@ -255,6 +374,133 @@ definitions:
           type: object
         type: array
     type: object
+  service.MonthlyCoachCoursesDTO:
+    properties:
+      coachId:
+        type: integer
+      coachName:
+        type: string
+      courses:
+        items:
+          $ref: '#/definitions/service.CoachCourseDTO'
+        type: array
+      month:
+        type: string
+      summary:
+        $ref: '#/definitions/service.CoachCourseSummaryDTO'
+    type: object
+  service.PendingCourseDTO:
+    properties:
+      coachId:
+        type: integer
+      coachName:
+        type: string
+      courseType:
+        type: integer
+      courtId:
+        type: integer
+      courtName:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      duration:
+        type: number
+      endTime:
+        type: string
+      id:
+        type: integer
+      isAdult:
+        type: integer
+      membersData:
+        items:
+          $ref: '#/definitions/service.PendingCourseMemberDTO'
+        type: array
+      startTime:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  service.PendingCourseMemberDTO:
+    properties:
+      annualCount:
+        type: number
+      annualTimes:
+        type: number
+      charge:
+        type: number
+      description:
+        type: number
+      memberId:
+        type: integer
+      memberName:
+        type: string
+      memberNumber:
+        type: string
+      quantities:
+        type: integer
+      restCharge:
+        type: number
+      times:
+        type: number
+      timesCount:
+        type: number
+    type: object
+  service.RechargeNoticeDTO:
+    properties:
+      acknowledgedAt:
+        type: string
+      coachActive:
+        type: boolean
+      coachId:
+        type: integer
+      coachName:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      memberActive:
+        type: boolean
+      memberId:
+        type: integer
+      memberName:
+        type: string
+      memberNumber:
+        type: string
+      note:
+        type: string
+      rechargeDate:
+        type: string
+      status:
+        type: string
+      updatedAt:
+        type: string
+      version:
+        type: integer
+    type: object
+  service.RechargeNoticePage:
+    properties:
+      content:
+        items:
+          $ref: '#/definitions/service.RechargeNoticeDTO'
+        type: array
+      first:
+        type: boolean
+      last:
+        type: boolean
+      number:
+        type: integer
+      numberOfElements:
+        type: integer
+      size:
+        type: integer
+      totalElements:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.RevenueData:
     properties:
       charge:
@@ -299,6 +545,42 @@ info:
   title: Ledong DB API
   version: "1.0"
 paths:
+  /coach-submissions:
+    get:
+      description: 分页混合返回待审课程和待知悉充值，仅用于管理员收件箱
+      parameters:
+      - default: 1
+        description: 页码，从1开始
+        in: query
+        name: pageNum
+        type: integer
+      - default: 30
+        description: 每页数量，最大100
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.CoachSubmissionPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+      summary: 查询教练待处理填报
+      tags:
+      - 教练填报
   /coach/efficient:
     get:
       consumes:
@@ -337,12 +619,16 @@ paths:
     get:
       consumes:
       - application/json
-      description: 根据开始时间查询课程列表，支持按会员编号过滤和分页
+      description: 根据开始和结束时间查询课程列表，支持按会员编号过滤和分页
       parameters:
       - description: 开始时间，格式：2006-01-02 15:04:05
         in: query
         name: startTime
         required: true
+        type: string
+      - description: 结束时间，格式：2006-01-02 15:04:05
+        in: query
+        name: endTime
         type: string
       - description: 会员编号，可选
         in: query
@@ -452,6 +738,51 @@ paths:
           schema:
             $ref: '#/definitions/handler.Response'
       summary: 移除课程成员
+      tags:
+      - 课程
+  /prepaidCard/course/coach/{coachId}:
+    get:
+      description: 按自然月查询一个有效教练的全部正式课程和授课课时统计，只读
+      parameters:
+      - description: 安全验证头
+        in: header
+        name: secure
+        required: true
+        type: string
+      - description: 教练ID
+        in: path
+        name: coachId
+        required: true
+        type: integer
+      - description: 统计月，格式：2006-01
+        in: query
+        name: month
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.MonthlyCoachCoursesDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.Response'
+      summary: 查询单个教练课程
       tags:
       - 课程
   /prepaidCard/course/create:
@@ -702,6 +1033,103 @@ paths:
       summary: 查询消费记录
       tags:
       - 消费记录
+  /recharge-notices:
+    get:
+      description: 按状态和业务日期分页查询充值待办历史
+      parameters:
+      - description: PENDING或ACKNOWLEDGED
+        in: query
+        name: status
+        required: true
+        type: string
+      - default: 1
+        description: 页码，从1开始
+        in: query
+        name: pageNum
+        type: integer
+      - default: 30
+        description: 每页数量，最大100
+        in: query
+        name: pageSize
+        type: integer
+      - description: 开始业务日期 YYYY-MM-DD
+        in: query
+        name: startDate
+        type: string
+      - description: 结束业务日期 YYYY-MM-DD
+        in: query
+        name: endDate
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.RechargeNoticePage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+      summary: 查询充值待办
+      tags:
+      - 教练填报
+  /recharge-notices/{id}/acknowledge:
+    post:
+      consumes:
+      - application/json
+      description: 按内容版本并发确认；相同版本重复请求幂等成功
+      parameters:
+      - description: 充值待办ID
+        format: int64
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 内容版本
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.acknowledgeRechargeNoticeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.RechargeNoticeDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.rechargeNoticeErrorResponse'
+      summary: 确认已知悉充值待办
+      tags:
+      - 教练填报
   /sms/notify:
     post:
       consumes:
@@ -805,12 +1233,10 @@ paths:
       - description: 场地
         in: formData
         name: court
-        required: true
         type: string
       - description: 教练
         in: formData
         name: coach
-        required: true
         type: string
       - description: 备注
         in: formData

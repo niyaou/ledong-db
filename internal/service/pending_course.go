@@ -71,6 +71,24 @@ func (s *PendingCourseService) ListAll() ([]PendingCourseDTO, error) {
 	if err := s.db.Order("start_time DESC").Order("id DESC").Find(&pendingCourses).Error; err != nil {
 		return nil, newPendingCourseError(PendingErrorInternal, "查询待审课程失败", err)
 	}
+	return s.buildDTOs(pendingCourses)
+}
+
+// listByIDs supports the unified administrator inbox while preserving the
+// legacy all-record endpoint. Associations are still loaded in batches.
+func (s *PendingCourseService) listByIDs(ids []uint64) ([]PendingCourseDTO, error) {
+	ids = uniqueUint64(ids)
+	if len(ids) == 0 {
+		return []PendingCourseDTO{}, nil
+	}
+	var pendingCourses []model.PendingCourse
+	if err := s.db.Where("id IN ?", ids).Find(&pendingCourses).Error; err != nil {
+		return nil, newPendingCourseError(PendingErrorInternal, "查询待审课程失败", err)
+	}
+	return s.buildDTOs(pendingCourses)
+}
+
+func (s *PendingCourseService) buildDTOs(pendingCourses []model.PendingCourse) ([]PendingCourseDTO, error) {
 	if len(pendingCourses) == 0 {
 		return []PendingCourseDTO{}, nil
 	}
