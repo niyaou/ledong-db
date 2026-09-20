@@ -4,11 +4,11 @@
 
 ## 1. 联调范围与职责
 
-- `ledong-db`：维护 `pending_course` 与独立 `coach_recharge_notice` 表，提供统一待处理读模型、课程录取和充值知悉接口；只有课程录取会调用既有 `CourseService.CreateCourse`。
+- `ledong-db`：维护 `pending_course` 与独立 `coach_recharge_notice` 表，提供统一待处理读模型、课程录取和充值知悉接口；只有课程录取会创建正式课程。单次班课使用 `courseType=3`，不关联会员，人数通过 `participantCount` 独立保存。
 - `ledong-tennis/material-kit-react`：提供“教练填报课程”管理页，按校区分组展示待审课并逐条录取。
 - `court-book`：教练身份初始化、待审课程 CRUD、会员搜索、正式课程只读查询；云函数直接连接 MySQL，不调用 `ledong-db` 的新接口。
 
-课程流程：教练小程序提交待审课 → `pending_course` → 管理端查询 → 管理员逐条录取 → 既有正式录课逻辑创建 `course`、`spend`、`course_member` 并扣减余额/次数 → 物理删除待审记录。
+课程流程：教练小程序提交待审课 → `pending_course` → 管理端查询 → 管理员逐条录取 → 正式录课逻辑创建 `course`；普通课程按原规则创建 `spend`、`course_member` 并扣减余额/次数，单次班课仅保存正式课程和上报人数 → 物理删除待审记录。
 
 充值待办流程：教练小程序上报 → `coach_recharge_notice` → 统一待处理时间流 → 管理员按内容版本知悉 → 永久历史。该流程不写 `charge`、`course`、`spend` 或 `course_member`，“已知悉”不表示“已充值”。
 
@@ -16,7 +16,7 @@
 
 ## 2. 上线前配置
 
-1. 在测试库依次执行 `ledong-db/db-migrate/create_pending_course.sql` 与 `ledong-db/db-migrate/create_coach_recharge_notice.sql`；上线前用 `SHOW CREATE TABLE` 核对表、唯一键和排序索引。
+1. 在测试库依次执行 `ledong-db/db-migrate/create_pending_course.sql`、`ledong-db/db-migrate/create_coach_recharge_notice.sql` 与可重复执行的 `ledong-db/db-migrate/add_single_group_course.sql`；上线前用 `SHOW CREATE TABLE` 核对表、人数列、唯一键和排序索引。
 2. `ledong-db` 启动时会固定 Go 的业务时区和 MySQL 驱动解析位置为 `Asia/Shanghai`，并在每个数据库连接设置 MySQL 会话 `time_zone='+08:00'`；部署环境仍应设置 `TZ=Asia/Shanghai`，以保持进程日志及周边组件一致。MySQL `DATETIME`、HTTP 时间字符串和 `updatedAt` 比较均使用业务时间 `YYYY-MM-DD HH:mm:ss`，不按 UTC 转换。部署后使用应用同一数据库连接执行 `SELECT @@session.time_zone, NOW(), UTC_TIMESTAMP();`，确认会话时区为 `+08:00` 且 `NOW()` 比 `UTC_TIMESTAMP()` 快 8 小时。
 3. 为云函数 `coach_context`、`pending_course`、`recharge_notice`、`member_search`、`coach_course_list` 配置相同的数据库连接参数与同一个高强度 `COACH_CONTEXT_SECRET`。
 4. 确认微信云函数到 MySQL 的网络白名单、账号权限和 TLS/网络配置可用；云函数只允许写 `pending_course`，不写正式业务表。
@@ -34,7 +34,7 @@
 
 统一分页沿用 `Page<T>`：请求页码从 1 开始，响应 `number` 从 0 开始。`RechargeNoticeDTO` 固定包含 `id`、教练和会员身份及 active 标志、`rechargeDate`、`note`、`status`、`version`、`createdAt`、`updatedAt`、`acknowledgedAt`。业务日期使用 `YYYY-MM-DD`，时间使用北京时间 `YYYY-MM-DD HH:mm:ss`，客户端不得再次做时区换算。
 
-录取请求中的 `course` 至少包含：`coachId`、`courtId`、`startTime`、`endTime`、`duration`、`courseType`、`isAdult`、`description` 和 `membersData`。每个会员消费项使用 `memberId`、`charge`、`times`、`annualTimes`、`description`、`quantities`。
+录取请求中的 `course` 至少包含：`coachId`、`courtId`、`startTime`、`endTime`、`duration`、`courseType`、`participantCount`、`isAdult`、`description` 和 `membersData`。每个会员消费项使用 `memberId`、`charge`、`times`、`annualTimes`、`description`、`quantities`。单次班课要求 `participantCount` 为正整数且 `membersData=[]`；其他课程要求 `participantCount=0`。
 
 关键错误码：`PENDING_UPDATED`、`PENDING_NOT_FOUND`、`COURSE_DUPLICATE`、`INVALID_MEMBER_SPEND`、`DUPLICATE_MEMBER`、`COACH_NOT_FOUND`、`COURT_NOT_FOUND`、`MEMBER_NOT_FOUND`、`FORMAL_CREATED_PENDING_DELETE_FAILED`、`INTERNAL_ERROR`。管理端统一使用既有 notify 展示，`PENDING_UPDATED` 与 `PENDING_NOT_FOUND` 后刷新列表。
 
@@ -46,11 +46,11 @@
 - `member_search`：姓名模糊搜索，最多 20 条，返回余额字段。
 - `coach_course_list`：只读当前教练当前自然月及前两个月的正式课；范围固定按 `Asia/Shanghai`，每页 30 条。
 
-云函数业务时间也使用 `YYYY-MM-DD HH:mm:ss`。`course_type` 为 `-2/-1/0/1/2`；订场 `is_adult` 继续沿用正式课程的实际字段值与默认语义。
+云函数业务时间也使用 `YYYY-MM-DD HH:mm:ss`。`course_type` 为 `-2/-1/0/1/2/3`，其中 `3` 为“单次班课”；订场 `is_adult` 继续沿用正式课程的实际字段值与默认语义。
 
 ## 4. 部署顺序
 
-1. 执行两个数据库迁移并检查表、唯一键、排序索引和权限。
+1. 执行数据库迁移并检查表、`participant_count`、唯一键、排序索引和权限。
 2. 部署 `ledong-db`，确认新路由可用且旧 Excel 录课接口仍可用。
 3. 分别安装并部署五个云函数依赖，写入配置并在微信环境验证 token、MySQL 连接和日志。
 4. 发布 `court-book` 小程序版本。
@@ -66,8 +66,9 @@
 2. 管理端“教练填报课程”页面显示课程，按校区分组；展开会员明细、欠费确认、手动刷新均正常。
 3. 管理员录取后，确认正式课程可见，`spend` 与 `course_member` 已写入，余额/次数按既有逻辑扣减，待审记录被物理删除。
 4. 管理端立即刷新后不再显示已录取课程；小程序待审页刷新后也不再显示该课程。
-5. 教练上报充值待办后，管理端统一收件箱出现充值卡；确认数据库未新增 `charge`、`course`、`spend`、`course_member` 记录。
-6. 管理员知悉后，记录离开待处理列表并进入双方历史；重复知悉同一版本保持成功。
+5. 教练新增单次班课并填报人数；管理员录取后只生成一条 `course_type=3` 的正式课程，不生成 `spend` 或 `course_member`，统计中的课程数增加 1、人数按填报值增加，班课课时同步增加。
+6. 教练上报充值待办后，管理端统一收件箱出现充值卡；确认数据库未新增 `charge`、`course`、`spend`、`course_member` 记录。
+7. 管理员知悉后，记录离开待处理列表并进入双方历史；重复知悉同一版本保持成功。
 
 ### 异常与边界
 

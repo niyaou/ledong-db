@@ -158,6 +158,35 @@ func (s *CourseService) TotalCourse(startTime, endTime string, number *string, p
 }
 
 func (s *CourseService) CreateCourse(startTime, endTime, coachName string, spendingTime float32, courtName, descript string, courseType int, membersObj string, isAdult *int) (*model.Course, error) {
+	return s.CreateCourseWithParticipantCount(
+		startTime,
+		endTime,
+		coachName,
+		spendingTime,
+		courtName,
+		descript,
+		courseType,
+		membersObj,
+		isAdult,
+		0,
+	)
+}
+
+// CreateCourseWithParticipantCount extends the legacy creation path for a
+// single group course while keeping CreateCourse callers source-compatible.
+func (s *CourseService) CreateCourseWithParticipantCount(startTime, endTime, coachName string, spendingTime float32, courtName, descript string, courseType int, membersObj string, isAdult *int, participantCount int) (*model.Course, error) {
+	if courseType == CourseTypeSingleGroup {
+		if participantCount <= 0 {
+			return nil, errors.New("单次班课上报人数必须为大于0的整数")
+		}
+		if strings.TrimSpace(membersObj) != "" {
+			return nil, errors.New("单次班课不能包含会员消费")
+		}
+		membersObj = ""
+	} else if participantCount != 0 {
+		return nil, errors.New("非单次班课的上报人数必须为0")
+	}
+
 	var coach model.Coach
 	if err := s.db.Where("number = ?", coachName).First(&coach).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -197,14 +226,15 @@ func (s *CourseService) CreateCourse(startTime, endTime, coachName string, spend
 	}
 
 	course := &model.Course{
-		StartTime:   parsedStartTime,
-		EndTime:     parsedEndTime,
-		Duration:    spendingTime,
-		Description: descript,
-		CourseType:  courseType,
-		CourtID:     court.ID,
-		CoachID:     coach.ID,
-		Notified:    0,
+		StartTime:        parsedStartTime,
+		EndTime:          parsedEndTime,
+		Duration:         spendingTime,
+		Description:      descript,
+		CourseType:       courseType,
+		ParticipantCount: participantCount,
+		CourtID:          court.ID,
+		CoachID:          coach.ID,
+		Notified:         0,
 	}
 
 	if isAdult != nil {

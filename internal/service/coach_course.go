@@ -56,31 +56,33 @@ type CoachCourseMemberDTO struct {
 // CoachCourseDTO mirrors the formal-course data shown in the coach mini
 // program while keeping this API independent from all course write flows.
 type CoachCourseDTO struct {
-	ID          uint64                 `json:"id"`
-	CoachID     uint64                 `json:"coachId"`
-	CoachName   string                 `json:"coachName"`
-	CourtID     uint64                 `json:"courtId"`
-	CourtName   string                 `json:"courtName"`
-	StartTime   string                 `json:"startTime"`
-	EndTime     string                 `json:"endTime"`
-	Duration    float32                `json:"duration"`
-	CourseType  int                    `json:"courseType"`
-	IsAdult     *int                   `json:"isAdult"`
-	Description string                 `json:"description"`
-	MembersData []CoachCourseMemberDTO `json:"membersData"`
+	ID               uint64                 `json:"id"`
+	CoachID          uint64                 `json:"coachId"`
+	CoachName        string                 `json:"coachName"`
+	CourtID          uint64                 `json:"courtId"`
+	CourtName        string                 `json:"courtName"`
+	StartTime        string                 `json:"startTime"`
+	EndTime          string                 `json:"endTime"`
+	Duration         float32                `json:"duration"`
+	CourseType       int                    `json:"courseType"`
+	ParticipantCount int                    `json:"participantCount"`
+	IsAdult          *int                   `json:"isAdult"`
+	Description      string                 `json:"description"`
+	MembersData      []CoachCourseMemberDTO `json:"membersData"`
 }
 
 type coachCourseRow struct {
-	ID          uint64
-	CoachID     uint64
-	CourtID     uint64
-	CourtName   string
-	StartTime   time.Time
-	EndTime     time.Time
-	Duration    float32
-	CourseType  int
-	IsAdult     *int
-	Description string
+	ID               uint64
+	CoachID          uint64
+	CourtID          uint64
+	CourtName        string
+	StartTime        time.Time
+	EndTime          time.Time
+	Duration         float32
+	CourseType       int
+	ParticipantCount int
+	IsAdult          *int
+	Description      string
 }
 
 type coachCourseMemberRow struct {
@@ -125,7 +127,7 @@ func (s *CourseService) CoachCourses(coachID uint64, month string) (*MonthlyCoac
 	if err := baseQuery.
 		Select(`course.id, course.coach_id, course.court_id,
 			COALESCE(court.name, '') AS court_name, course.start_time,
-			course.end_time, course.duration, course.course_type,
+			course.end_time, course.duration, course.course_type, course.participant_count,
 			course.is_adult, course.description`).
 		Joins("LEFT JOIN court ON court.id = course.court_id AND court.deleted_at IS NULL").
 		Order("course.start_time ASC").
@@ -151,25 +153,26 @@ func (s *CourseService) CoachCourses(coachID uint64, month string) (*MonthlyCoac
 			members = []CoachCourseMemberDTO{}
 		}
 		content = append(content, CoachCourseDTO{
-			ID:          row.ID,
-			CoachID:     row.CoachID,
-			CoachName:   coach.Name,
-			CourtID:     row.CourtID,
-			CourtName:   row.CourtName,
-			StartTime:   row.StartTime.In(start.Location()).Format(coachCourseTimeFormat),
-			EndTime:     row.EndTime.In(start.Location()).Format(coachCourseTimeFormat),
-			Duration:    row.Duration,
-			CourseType:  row.CourseType,
-			IsAdult:     row.IsAdult,
-			Description: row.Description,
-			MembersData: members,
+			ID:               row.ID,
+			CoachID:          row.CoachID,
+			CoachName:        coach.Name,
+			CourtID:          row.CourtID,
+			CourtName:        row.CourtName,
+			StartTime:        row.StartTime.In(start.Location()).Format(coachCourseTimeFormat),
+			EndTime:          row.EndTime.In(start.Location()).Format(coachCourseTimeFormat),
+			Duration:         row.Duration,
+			CourseType:       row.CourseType,
+			ParticipantCount: row.ParticipantCount,
+			IsAdult:          row.IsAdult,
+			Description:      row.Description,
+			MembersData:      members,
 		})
 
 		switch row.CourseType {
 		case -2, -1:
 			summary.TrialHours += row.Duration
 			summary.TotalHours += row.Duration
-		case 1:
+		case 1, CourseTypeSingleGroup:
 			summary.GroupHours += row.Duration
 			summary.TotalHours += row.Duration
 		case 2:

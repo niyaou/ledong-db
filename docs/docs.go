@@ -350,15 +350,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "会员JSON对象",
+                        "description": "会员JSON对象；单次班课必须为空",
                         "name": "membersObj",
-                        "in": "formData",
-                        "required": true
+                        "in": "formData"
                     },
                     {
                         "type": "integer",
                         "description": "是否成人课程",
                         "name": "isAdult",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "单次班课上报人数",
+                        "name": "participantCount",
                         "in": "formData"
                     }
                 ],
@@ -1673,7 +1678,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/model.Coach"
                 },
                 "courseType": {
-                    "description": "-2体验课未成单,-1体验课成单,0订场，1班课，2私教",
+                    "description": "-2体验课未成单,-1体验课成单,0订场，1班课，2私教，3单次班课",
                     "type": "integer"
                 },
                 "court": {
@@ -1707,6 +1712,9 @@ const docTemplate = `{
                     }
                 },
                 "notified": {
+                    "type": "integer"
+                },
+                "participantCount": {
                     "type": "integer"
                 },
                 "spend": {
@@ -1940,6 +1948,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/service.CoachCourseMemberDTO"
                     }
                 },
+                "participantCount": {
+                    "type": "integer"
+                },
                 "startTime": {
                     "type": "string"
                 }
@@ -2162,6 +2173,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/service.PendingCourseMemberDTO"
                     }
+                },
+                "participantCount": {
+                    "type": "integer"
                 },
                 "startTime": {
                     "type": "string"

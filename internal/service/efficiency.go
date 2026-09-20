@@ -161,14 +161,15 @@ func calendarMonthStart(t time.Time) time.Time {
 
 func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]courseStat, error) {
 	type courseDetail struct {
-		CoachName  string
-		CourtName  string
-		CoachID    uint64
-		StartTime  time.Time
-		CourseType int
-		Duration   float32
-		Quantities int
-		Spend      float32
+		CoachName        string
+		CourtName        string
+		CoachID          uint64
+		StartTime        time.Time
+		CourseType       int
+		Duration         float32
+		Quantities       int
+		ParticipantCount int
+		Spend            float32
 	}
 
 	var details []courseDetail
@@ -182,6 +183,7 @@ func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]cour
 			course.course_type,
 			course.duration,
 			COALESCE(spend_sum.quantities_sum, 0) as quantities,
+			course.participant_count,
 			COALESCE(spend_sum.spend_amount, 0) as spend
 		`).
 		Joins("LEFT JOIN coach ON course.coach_id = coach.coach_id").
@@ -275,7 +277,10 @@ func (s *EfficiencyService) getCourseStats(startTime, endTime time.Time) ([]cour
 		} else if detail.CourseType > 0 {
 			courses := float32(0)
 			members := float32(0)
-			if detail.Quantities > 0 {
+			if detail.CourseType == CourseTypeSingleGroup && detail.ParticipantCount > 0 {
+				courses = 1
+				members = float32(detail.ParticipantCount)
+			} else if detail.CourseType != CourseTypeSingleGroup && detail.Quantities > 0 {
 				courses = 1
 				if detail.Quantities > 1 {
 					members = float32(detail.Quantities)

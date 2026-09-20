@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"ledong-db/internal/service"
 
@@ -138,8 +139,9 @@ func (h *CourseHandler) TotalCourse(c *gin.Context) {
 // @Param        courtName    formData  string   true   "场地名称"
 // @Param        descript     formData  string   true   "描述"
 // @Param        courseType   formData  int      true   "课程类型"
-// @Param        membersObj   formData  string   true   "会员JSON对象"
+// @Param        membersObj   formData  string   false  "会员JSON对象；单次班课必须为空"
 // @Param        isAdult      formData  int      false  "是否成人课程"
+// @Param        participantCount formData int   false  "单次班课上报人数"
 // @Success      200          {object}  Response
 // @Failure      400          {object}  Response
 // @Failure      500          {object}  Response
@@ -159,7 +161,7 @@ func (h *CourseHandler) CreateCourse(c *gin.Context) {
 	courseTypeStr := c.PostForm("courseType")
 	membersObj := c.PostForm("membersObj")
 
-	if startTime == "" || endTime == "" || coachName == "" || spendingTimeStr == "" || courtName == "" || courseTypeStr == "" || membersObj == "" {
+	if startTime == "" || endTime == "" || coachName == "" || spendingTimeStr == "" || courtName == "" || courseTypeStr == "" {
 		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "参数不完整"})
 		return
 	}
@@ -175,6 +177,32 @@ func (h *CourseHandler) CreateCourse(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "课程类型格式错误"})
 		return
 	}
+	if courseType != service.CourseTypeSingleGroup && membersObj == "" {
+		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "参数不完整"})
+		return
+	}
+
+	participantCount := 0
+	if participantCountStr := c.PostForm("participantCount"); participantCountStr != "" {
+		participantCount, err = strconv.Atoi(participantCountStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "上报人数格式错误"})
+			return
+		}
+	}
+	if courseType == service.CourseTypeSingleGroup {
+		if participantCount <= 0 {
+			c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "单次班课上报人数必须为大于0的整数"})
+			return
+		}
+		if strings.TrimSpace(membersObj) != "" {
+			c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "单次班课不能包含会员消费"})
+			return
+		}
+	} else if participantCount != 0 {
+		c.JSON(http.StatusBadRequest, Response{Code: 1, Message: "非单次班课的上报人数必须为0"})
+		return
+	}
 
 	var isAdult *int
 	if isAdultStr := c.PostForm("isAdult"); isAdultStr != "" {
@@ -183,7 +211,7 @@ func (h *CourseHandler) CreateCourse(c *gin.Context) {
 		}
 	}
 
-	course, err := h.service.CreateCourse(startTime, endTime, coachName, float32(spendingTime), courtName, descript, courseType, membersObj, isAdult)
+	course, err := h.service.CreateCourseWithParticipantCount(startTime, endTime, coachName, float32(spendingTime), courtName, descript, courseType, membersObj, isAdult, participantCount)
 	if err != nil {
 		logBusinessFailure(c, "course_create", err, "start_time", startTime, "end_time", endTime, "coach", coachName, "court", courtName, "course_type", courseType)
 		c.JSON(http.StatusInternalServerError, Response{Code: 1, Message: err.Error()})
