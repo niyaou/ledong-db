@@ -94,7 +94,7 @@ definitions:
       coach:
         $ref: '#/definitions/model.Coach'
       courseType:
-        description: -2体验课未成单,-1体验课成单,0订场，1班课，2私教
+        description: -2体验课未成单,-1体验课成单,0订场，1班课，2私教，3单次班课
         type: integer
       court:
         allOf:
@@ -116,6 +116,8 @@ definitions:
           $ref: '#/definitions/model.PrepaidCard'
         type: array
       notified:
+        type: integer
+      participantCount:
         type: integer
       spend:
         items:
@@ -271,6 +273,8 @@ definitions:
         items:
           $ref: '#/definitions/service.CoachCourseMemberDTO'
         type: array
+      participantCount:
+        type: integer
       startTime:
         type: string
     type: object
@@ -417,6 +421,8 @@ definitions:
         items:
           $ref: '#/definitions/service.PendingCourseMemberDTO'
         type: array
+      participantCount:
+        type: integer
       startTime:
         type: string
       updatedAt:
@@ -831,14 +837,17 @@ paths:
         name: courseType
         required: true
         type: integer
-      - description: 会员JSON对象
+      - description: 会员JSON对象；单次班课必须为空
         in: formData
         name: membersObj
-        required: true
         type: string
       - description: 是否成人课程
         in: formData
         name: isAdult
+        type: integer
+      - description: 单次班课上报人数
+        in: formData
+        name: participantCount
         type: integer
       produces:
       - application/json

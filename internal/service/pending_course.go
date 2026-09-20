@@ -49,20 +49,21 @@ type PendingCourseMemberDTO struct {
 // PendingCourseDTO is intentionally flat. Grouping by court is a frontend
 // responsibility.
 type PendingCourseDTO struct {
-	ID          uint64                   `json:"id"`
-	CoachID     uint64                   `json:"coachId"`
-	CoachName   string                   `json:"coachName"`
-	CourtID     uint64                   `json:"courtId"`
-	CourtName   string                   `json:"courtName"`
-	StartTime   string                   `json:"startTime"`
-	EndTime     string                   `json:"endTime"`
-	Duration    float32                  `json:"duration"`
-	CourseType  int                      `json:"courseType"`
-	IsAdult     *int                     `json:"isAdult"`
-	Description string                   `json:"description"`
-	MembersData []PendingCourseMemberDTO `json:"membersData"`
-	CreatedAt   string                   `json:"createdAt"`
-	UpdatedAt   string                   `json:"updatedAt"`
+	ID               uint64                   `json:"id"`
+	CoachID          uint64                   `json:"coachId"`
+	CoachName        string                   `json:"coachName"`
+	CourtID          uint64                   `json:"courtId"`
+	CourtName        string                   `json:"courtName"`
+	StartTime        string                   `json:"startTime"`
+	EndTime          string                   `json:"endTime"`
+	Duration         float32                  `json:"duration"`
+	CourseType       int                      `json:"courseType"`
+	ParticipantCount int                      `json:"participantCount"`
+	IsAdult          *int                     `json:"isAdult"`
+	Description      string                   `json:"description"`
+	MembersData      []PendingCourseMemberDTO `json:"membersData"`
+	CreatedAt        string                   `json:"createdAt"`
+	UpdatedAt        string                   `json:"updatedAt"`
 }
 
 // ListAll returns all queue messages and batch-assembles every display field.
@@ -127,18 +128,19 @@ func (s *PendingCourseService) buildDTOs(pendingCourses []model.PendingCourse) (
 	result := make([]PendingCourseDTO, 0, len(pendingCourses))
 	for _, pending := range pendingCourses {
 		dto := PendingCourseDTO{
-			ID:          pending.ID,
-			CoachID:     pending.CoachID,
-			CourtID:     pending.CourtID,
-			StartTime:   pending.StartTime.Format(pendingCourseTimeFormat),
-			EndTime:     pending.EndTime.Format(pendingCourseTimeFormat),
-			Duration:    pending.Duration,
-			CourseType:  pending.CourseType,
-			IsAdult:     pending.IsAdult,
-			Description: pending.Description,
-			MembersData: make([]PendingCourseMemberDTO, 0, len(memberInputsByPendingID[pending.ID])),
-			CreatedAt:   pending.CreatedAt.Format(pendingCourseTimeFormat),
-			UpdatedAt:   pending.UpdatedAt.Format(pendingCourseTimeFormat),
+			ID:               pending.ID,
+			CoachID:          pending.CoachID,
+			CourtID:          pending.CourtID,
+			StartTime:        pending.StartTime.Format(pendingCourseTimeFormat),
+			EndTime:          pending.EndTime.Format(pendingCourseTimeFormat),
+			Duration:         pending.Duration,
+			CourseType:       pending.CourseType,
+			ParticipantCount: pending.ParticipantCount,
+			IsAdult:          pending.IsAdult,
+			Description:      pending.Description,
+			MembersData:      make([]PendingCourseMemberDTO, 0, len(memberInputsByPendingID[pending.ID])),
+			CreatedAt:        pending.CreatedAt.Format(pendingCourseTimeFormat),
+			UpdatedAt:        pending.UpdatedAt.Format(pendingCourseTimeFormat),
 		}
 		if coach, ok := coachMap[pending.CoachID]; ok {
 			dto.CoachName = coach.Name
@@ -236,12 +238,15 @@ func (s *PendingCourseService) Admit(id uint64, updatedAt string, input PendingC
 		}
 	}
 
-	membersJSON, err := buildLegacyMembersJSON(input.MembersData, memberMap)
-	if err != nil {
-		return nil, err
+	membersJSON := ""
+	if *input.CourseType != CourseTypeSingleGroup {
+		membersJSON, err = buildLegacyMembersJSON(input.MembersData, memberMap)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	formalCourse, err := s.courseService.CreateCourse(
+	formalCourse, err := s.courseService.CreateCourseWithParticipantCount(
 		validated.StartTime.Format(pendingCourseTimeFormat),
 		validated.EndTime.Format(pendingCourseTimeFormat),
 		coach.Number,
@@ -251,6 +256,7 @@ func (s *PendingCourseService) Admit(id uint64, updatedAt string, input PendingC
 		*input.CourseType,
 		membersJSON,
 		validated.IsAdult,
+		input.ParticipantCount,
 	)
 	if err != nil {
 		return nil, newPendingCourseError(PendingErrorInternal, "正式课程创建失败", err)

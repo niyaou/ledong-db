@@ -196,3 +196,39 @@ func TestGetCourseStatsAppliesSharedMonthlyLimitToCoachAndCampus(t *testing.T) {
 		t.Fatalf("unmet SQL expectations: %v", err)
 	}
 }
+
+func TestGetCourseStatsUsesSingleGroupParticipantCountOneToOne(t *testing.T) {
+	db, mock := newRemoveCourseTestDB(t)
+	shanghai, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reportStart := time.Date(2026, time.July, 1, 0, 0, 0, 0, shanghai)
+	reportEnd := time.Date(2026, time.July, 31, 23, 59, 59, 0, shanghai)
+	rows := sqlmock.NewRows([]string{
+		"coach_name", "court_name", "coach_id", "start_time",
+		"course_type", "duration", "quantities", "participant_count", "spend",
+	}).
+		AddRow("coach", "campus", 8, reportStart.Add(time.Hour), CourseTypeSingleGroup, 1, 0, 1, 0).
+		AddRow("coach", "campus", 8, reportStart.Add(2*time.Hour), CourseTypeSingleGroup, 1.5, 0, 6, 0)
+
+	mock.ExpectQuery(regexp.QuoteMeta("FROM `course`")+".*"+regexp.QuoteMeta("ORDER BY course.start_time, course.id")).
+		WithArgs(calendarMonthStart(reportStart), reportEnd).
+		WillReturnRows(rows)
+
+	stats, err := (&EfficiencyService{db: db}).getCourseStats(reportStart, reportEnd)
+	if err != nil {
+		t.Fatalf("getCourseStats: %v", err)
+	}
+	for _, stat := range stats {
+		if stat.Courses != 2 || stat.Members != 7 || stat.TruncatedCourses != 2 || stat.TruncatedMembers != 7 {
+			t.Fatalf("single group totals = %+v, want courses=2 and members=7", stat)
+		}
+	}
+	if len(stats) != 2 {
+		t.Fatalf("stats = %+v, want coach and campus entries", stats)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}

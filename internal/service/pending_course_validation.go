@@ -11,6 +11,8 @@ import (
 )
 
 const (
+	CourseTypeSingleGroup = 3
+
 	PendingErrorInvalidRequest                 = "INVALID_REQUEST"
 	PendingErrorInvalidMemberSpend             = "INVALID_MEMBER_SPEND"
 	PendingErrorDuplicateMember                = "DUPLICATE_MEMBER"
@@ -66,15 +68,16 @@ type MemberSpendInput struct {
 
 // PendingCourseInput is the complete course submitted by the administrator.
 type PendingCourseInput struct {
-	CoachID     uint64             `json:"coachId"`
-	CourtID     uint64             `json:"courtId"`
-	StartTime   string             `json:"startTime"`
-	EndTime     string             `json:"endTime"`
-	Duration    float32            `json:"duration"`
-	CourseType  *int               `json:"courseType"`
-	IsAdult     *int               `json:"isAdult"`
-	Description string             `json:"description"`
-	MembersData []MemberSpendInput `json:"membersData"`
+	CoachID          uint64             `json:"coachId"`
+	CourtID          uint64             `json:"courtId"`
+	StartTime        string             `json:"startTime"`
+	EndTime          string             `json:"endTime"`
+	Duration         float32            `json:"duration"`
+	CourseType       *int               `json:"courseType"`
+	ParticipantCount int                `json:"participantCount"`
+	IsAdult          *int               `json:"isAdult"`
+	Description      string             `json:"description"`
+	MembersData      []MemberSpendInput `json:"membersData"`
 }
 
 type storedPendingMemberSpend struct {
@@ -159,7 +162,16 @@ func validatePendingCourseInput(input PendingCourseInput) (*validatedPendingCour
 	if courseType != 0 && input.IsAdult == nil {
 		return nil, newPendingCourseError(PendingErrorInvalidRequest, "请选择成人或儿童课程", nil)
 	}
-	if courseType < 0 {
+	if courseType == CourseTypeSingleGroup {
+		if input.ParticipantCount <= 0 {
+			return nil, newPendingCourseError(PendingErrorInvalidRequest, "单次班课上报人数必须为大于0的整数", nil)
+		}
+		if len(input.MembersData) != 0 {
+			return nil, newPendingCourseError(PendingErrorInvalidRequest, "单次班课不能包含会员消费", nil)
+		}
+	} else if input.ParticipantCount != 0 {
+		return nil, newPendingCourseError(PendingErrorInvalidRequest, "非单次班课的上报人数必须为0", nil)
+	} else if courseType < 0 {
 		if len(input.MembersData) != 0 {
 			return nil, newPendingCourseError(PendingErrorInvalidRequest, "体验课不能包含会员消费", nil)
 		}
@@ -266,7 +278,7 @@ func parsePendingBusinessTime(value string) (time.Time, error) {
 
 func validCourseType(courseType int) bool {
 	switch courseType {
-	case -2, -1, 0, 1, 2:
+	case -2, -1, 0, 1, 2, CourseTypeSingleGroup:
 		return true
 	default:
 		return false

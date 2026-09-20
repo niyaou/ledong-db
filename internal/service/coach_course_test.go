@@ -168,3 +168,45 @@ func TestCoachCourseMemberQueryIsBatchScoped(t *testing.T) {
 		t.Fatalf("unmet SQL expectations: %v", err)
 	}
 }
+
+func TestCoachCoursesIncludesSingleGroupParticipantsAndGroupHours(t *testing.T) {
+	db, mock := newRemoveCourseTestDB(t)
+	shanghai, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 7, 1, 0, 0, 0, 0, shanghai)
+	endExclusive := time.Date(2026, 8, 1, 0, 0, 0, 0, shanghai)
+	lessonStart := time.Date(2026, 7, 8, 9, 0, 0, 0, shanghai)
+	lessonEnd := lessonStart.Add(time.Hour)
+
+	mock.ExpectQuery("SELECT .* FROM `coach` WHERE .*coach_id = \\? AND is_active = \\? AND deleted_at IS NULL.*LIMIT \\?").
+		WithArgs(uint64(12), 1, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"coach_id", "name"}).AddRow(12, "张教练"))
+	mock.ExpectQuery("SELECT course.id, course.coach_id, course.court_id,.*FROM `course` LEFT JOIN court.*WHERE course.coach_id = \\?.*course.start_time >= \\? AND course.start_time < \\?.*deleted_at.*ORDER BY course.start_time ASC,course.id ASC").
+		WithArgs(uint64(12), start, endExclusive).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "coach_id", "court_id", "court_name", "start_time", "end_time",
+			"duration", "course_type", "participant_count", "is_adult", "description",
+		}).AddRow(87, 12, 4, "中心校区", lessonStart, lessonEnd, 1, CourseTypeSingleGroup, 4, 1, "单次班课"))
+	mock.ExpectQuery("SELECT cm.course_id, pc.id AS member_id,.*FROM course_member AS cm JOIN prepaid_card AS pc.*LEFT JOIN spend AS s.*WHERE cm.course_id IN \\(\\?\\).*ORDER BY cm.course_id ASC,pc.id ASC").
+		WithArgs(uint64(87)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"course_id", "member_id", "member_name", "member_number", "charge", "times",
+			"annual_times", "description", "quantities",
+		}))
+
+	result, err := (&CourseService{db: db}).CoachCourses(12, "2026-07")
+	if err != nil {
+		t.Fatalf("CoachCourses: %v", err)
+	}
+	if result.Summary.TotalHours != 1 || result.Summary.GroupHours != 1 {
+		t.Fatalf("single group course summary = %+v", result.Summary)
+	}
+	if len(result.Courses) != 1 || result.Courses[0].ParticipantCount != 4 || len(result.Courses[0].MembersData) != 0 {
+		t.Fatalf("single group course response = %+v", result.Courses)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}

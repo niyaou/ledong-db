@@ -64,8 +64,8 @@ def query_monthly_stats(conn, coach_id):
             MONTH(start_time) AS c_month,
             SUM(CASE WHEN course_type = 2 THEN 1 ELSE 0 END) AS private_count,
             SUM(CASE WHEN course_type = 2 THEN duration ELSE 0 END) AS private_duration,
-            SUM(CASE WHEN course_type = 1 THEN 1 ELSE 0 END) AS group_count,
-            SUM(CASE WHEN course_type = 1 THEN duration ELSE 0 END) AS group_duration
+            SUM(CASE WHEN course_type IN (1, 3) THEN 1 ELSE 0 END) AS group_count,
+            SUM(CASE WHEN course_type IN (1, 3) THEN duration ELSE 0 END) AS group_duration
         FROM course
         WHERE coach_id = %s
           AND YEAR(start_time) = 2026
@@ -92,17 +92,23 @@ def query_monthly_stats(conn, coach_id):
     LEFT JOIN (
         SELECT 
             MONTH(c.start_time) AS s_month,
-            COUNT(s.id) AS group_attendance,
+            SUM(
+                CASE
+                    WHEN c.course_type = 3 THEN c.participant_count
+                    WHEN s.id IS NOT NULL THEN 1
+                    ELSE 0
+                END
+            ) AS group_attendance,
             SUM(
                 COALESCE(s.times, 0) 
                 + COALESCE(s.annual_times, 0) 
                 + CEILING(COALESCE(s.charge, 0) / 200)
             ) AS group_consumption
         FROM course c
-        INNER JOIN spend s ON c.id = s.course_id AND s.deleted_at IS NULL
+        LEFT JOIN spend s ON c.id = s.course_id AND s.deleted_at IS NULL
         WHERE c.coach_id = %s
           AND YEAR(c.start_time) = 2026
-          AND c.course_type = 1
+          AND c.course_type IN (1, 3)
           AND c.deleted_at IS NULL
         GROUP BY MONTH(c.start_time)
     ) gs ON c.c_month = gs.s_month

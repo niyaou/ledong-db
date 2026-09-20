@@ -59,18 +59,19 @@ func (j PendingJSON) Value() (driver.Value, error) {
 // PendingCourse is the short-lived message written by the coach mini-program
 // and physically deleted after a successful formal course creation.
 type PendingCourse struct {
-	ID          uint64      `gorm:"primaryKey;column:id" json:"id"`
-	CoachID     uint64      `gorm:"column:coach_id;index" json:"coachId"`
-	CourtID     uint64      `gorm:"column:court_id;index" json:"courtId"`
-	StartTime   time.Time   `gorm:"column:start_time;index" json:"startTime"`
-	EndTime     time.Time   `gorm:"column:end_time" json:"endTime"`
-	Duration    float32     `gorm:"column:duration" json:"duration"`
-	CourseType  int         `gorm:"column:course_type" json:"courseType"`
-	IsAdult     *int        `gorm:"column:is_adult;default:1" json:"isAdult"`
-	Description string      `gorm:"column:description" json:"description"`
-	MembersData PendingJSON `gorm:"column:members_data;type:json" json:"membersData"`
-	CreatedAt   time.Time   `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt   time.Time   `gorm:"column:updated_at" json:"updatedAt"`
+	ID               uint64      `gorm:"primaryKey;column:id" json:"id"`
+	CoachID          uint64      `gorm:"column:coach_id;index" json:"coachId"`
+	CourtID          uint64      `gorm:"column:court_id;index" json:"courtId"`
+	StartTime        time.Time   `gorm:"column:start_time;index" json:"startTime"`
+	EndTime          time.Time   `gorm:"column:end_time" json:"endTime"`
+	Duration         float32     `gorm:"column:duration" json:"duration"`
+	CourseType       int         `gorm:"column:course_type" json:"courseType"`
+	ParticipantCount int         `gorm:"column:participant_count;default:0" json:"participantCount"`
+	IsAdult          *int        `gorm:"column:is_adult;default:1" json:"isAdult"`
+	Description      string      `gorm:"column:description" json:"description"`
+	MembersData      PendingJSON `gorm:"column:members_data;type:json" json:"membersData"`
+	CreatedAt        time.Time   `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt        time.Time   `gorm:"column:updated_at" json:"updatedAt"`
 }
 
 // TableName specifies the physical queue table.

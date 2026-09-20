@@ -59,6 +59,37 @@ func TestValidatePendingCourseInput(t *testing.T) {
 			},
 		},
 		{
+			name: "single group course has reported participants without members",
+			mutate: func(input *PendingCourseInput) {
+				input.CourseType = pendingIntPointer(CourseTypeSingleGroup)
+				input.ParticipantCount = 6
+				input.MembersData = nil
+			},
+		},
+		{
+			name: "single group course requires reported participants",
+			mutate: func(input *PendingCourseInput) {
+				input.CourseType = pendingIntPointer(CourseTypeSingleGroup)
+				input.MembersData = nil
+			},
+			wantErr: PendingErrorInvalidRequest,
+		},
+		{
+			name: "single group course rejects member spending",
+			mutate: func(input *PendingCourseInput) {
+				input.CourseType = pendingIntPointer(CourseTypeSingleGroup)
+				input.ParticipantCount = 6
+			},
+			wantErr: PendingErrorInvalidRequest,
+		},
+		{
+			name: "other course rejects reported participants",
+			mutate: func(input *PendingCourseInput) {
+				input.ParticipantCount = 6
+			},
+			wantErr: PendingErrorInvalidRequest,
+		},
+		{
 			name: "cross day",
 			mutate: func(input *PendingCourseInput) {
 				input.EndTime = "2026-07-13 00:30:00"
